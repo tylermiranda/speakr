@@ -1238,6 +1238,23 @@ def update_recording(recording_id):
             changed_fields.append('meeting_date')
         except ValueError:
             return jsonify({'error': 'Invalid meeting_date format'}), 400
+    if 'meeting_end_at' in data:
+        try:
+            if data['meeting_end_at']:
+                recording.meeting_end_at = to_utc_naive(
+                    datetime.fromisoformat(data['meeting_end_at'].replace('Z', '+00:00'))
+                )
+            else:
+                recording.meeting_end_at = None
+            changed_fields.append('meeting_end_at')
+        except ValueError:
+            return jsonify({'error': 'Invalid meeting_end_at format'}), 400
+    if (
+        recording.meeting_date
+        and recording.meeting_end_at
+        and recording.meeting_end_at < recording.meeting_date
+    ):
+        return jsonify({'error': 'Meeting end must be on or after the start.'}), 400
     if 'is_inbox' in data:
         recording.is_inbox = bool(data['is_inbox'])
         changed_fields.append('is_inbox')

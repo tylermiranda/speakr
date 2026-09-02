@@ -100,10 +100,20 @@
                 <span class="chip-meta__label">${selectedRecording.participants || t('help.noParticipants')}</span>
             </span>
 
-            <!-- Meeting date -->
-            <span class="chip-meta chip-meta--clickable" @click="openMeetingDatePicker">
+            <!-- Meeting start -->
+            <span class="chip-meta chip-meta--clickable" @click="openMeetingDatePicker"
+                  :title="t('detail.editMeetingStart') || 'Click to edit meeting start'">
                 <i class="fas fa-calendar"></i>
-                <span class="chip-meta__label">${selectedRecording.meeting_date ? formatDisplayDate(selectedRecording.meeting_date) : 'No date set'}</span>
+                <span class="chip-meta__label">${selectedRecording.meeting_date ? formatDisplayDate(selectedRecording.meeting_date) : 'No start set'}</span>
+                <i class="fas fa-pen text-[10px] opacity-60"></i>
+            </span>
+
+            <!-- Meeting end -->
+            <span class="chip-meta chip-meta--clickable" @click="openMeetingEndPicker"
+                  :title="t('detail.editMeetingEnd') || 'Click to edit meeting end'">
+                <i class="fas fa-clock"></i>
+                <span class="chip-meta__label">${effectiveMeetingEnd(selectedRecording) ? formatDisplayDate(effectiveMeetingEnd(selectedRecording)) : 'No end set'}</span>
+                <i class="fas fa-pen text-[10px] opacity-60"></i>
             </span>
 
             <!-- File metadata facts -->

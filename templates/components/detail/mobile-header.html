@@ -127,9 +127,17 @@
              instead of a comma-separated string. Each chip is the
              same height/padding so the row has visual rhythm. -->
         <div class="flex flex-wrap gap-1.5">
-            <button @click.stop="openMeetingDatePicker" class="chip-meta chip-meta--clickable">
+            <button @click.stop="openMeetingDatePicker" class="chip-meta chip-meta--clickable"
+                    :title="t('detail.editMeetingStart') || 'Click to edit meeting start'">
                 <i class="fas fa-calendar"></i>
-                <span class="chip-meta__label" v-text="selectedRecording.meeting_date ? formatDisplayDate(selectedRecording.meeting_date) : 'No date set'"></span>
+                <span class="chip-meta__label" v-text="selectedRecording.meeting_date ? formatDisplayDate(selectedRecording.meeting_date) : 'No start set'"></span>
+                <i class="fas fa-pen text-[10px] opacity-60"></i>
+            </button>
+            <button @click.stop="openMeetingEndPicker" class="chip-meta chip-meta--clickable"
+                    :title="t('detail.editMeetingEnd') || 'Click to edit meeting end'">
+                <i class="fas fa-clock"></i>
+                <span class="chip-meta__label" v-text="effectiveMeetingEnd(selectedRecording) ? formatDisplayDate(effectiveMeetingEnd(selectedRecording)) : 'No end set'"></span>
+                <i class="fas fa-pen text-[10px] opacity-60"></i>
             </button>
             <span v-if="selectedRecording.is_shared" class="chip-meta">
                 <i class="fas fa-user"></i>

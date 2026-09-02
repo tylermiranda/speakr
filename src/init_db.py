@@ -228,6 +228,8 @@ def _run_migrations(app, engine):
             app.logger.info("Added audio_duration_seconds column to recording table")
         if add_column_if_not_exists(engine, 'recording', 'completed_at', 'DATETIME'):
             app.logger.info("Added completed_at column to recording table")
+        if add_column_if_not_exists(engine, 'recording', 'meeting_end_at', 'DATETIME'):
+            app.logger.info("Added meeting_end_at column to recording table")
         if add_column_if_not_exists(engine, 'recording', 'processing_time_seconds', 'INTEGER'):
             app.logger.info("Added processing_time_seconds column to recording table")
         if add_column_if_not_exists(engine, 'recording', 'transcription_duration_seconds', 'INTEGER'):

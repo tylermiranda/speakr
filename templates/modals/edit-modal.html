@@ -25,6 +25,16 @@
                 </div>
             </div>
             <div>
+                <label class="block text-sm font-medium mb-2" v-text="t('form.meetingEnd') || 'Meeting End'"></label>
+                <div @click="openDateTimePicker('edit_modal_meeting_end', editingRecording.meeting_end_at, (isoString) => { editingRecording.meeting_end_at = isoString; })"
+                     class="field cursor-pointer hover:border-[var(--border-focus)] flex items-center justify-between">
+                    <span :class="editingRecording.meeting_end_at ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'">
+                        ${editingRecording.meeting_end_at ? formatDisplayDate(editingRecording.meeting_end_at) : 'Select date and time...'}
+                    </span>
+                    <i class="fas fa-clock text-[var(--text-muted)]"></i>
+                </div>
+            </div>
+            <div>
                 <label class="block text-sm font-medium mb-2" v-text="t('form.notes')"></label>
                 <textarea v-model="editingRecording.notes" rows="4" class="field" style="min-height: 96px;"></textarea>
             </div>

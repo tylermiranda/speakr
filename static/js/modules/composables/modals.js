@@ -39,16 +39,18 @@ export function useModals(state, utils) {
         if (!editingRecording.value) return;
         try {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-            const response = await fetch(`/api/recordings/${editingRecording.value.id}`, {
-                method: 'PUT',
+            const response = await fetch('/save', {
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': csrfToken
                 },
                 body: JSON.stringify({
+                    id: editingRecording.value.id,
                     title: editingRecording.value.title,
                     participants: editingRecording.value.participants,
                     meeting_date: editingRecording.value.meeting_date,
+                    meeting_end_at: editingRecording.value.meeting_end_at,
                     notes: editingRecording.value.notes
                 })
             });
@@ -610,13 +612,49 @@ export function useModals(state, utils) {
             (isoString) => {
                 selectedRecording.value.meeting_date = isoString;
                 // Auto-save the change
-                saveInlineMeetingDate();
+                saveInlineMeetingTimes();
             }
         );
     };
 
-    // Save meeting date inline (similar to other inline edits)
-    const saveInlineMeetingDate = async () => {
+    const openMeetingEndPicker = () => {
+        if (!selectedRecording.value) return;
+
+        const currentEnd = selectedRecording.value.meeting_end_at
+            || effectiveMeetingEnd(selectedRecording.value);
+
+        openDateTimePicker(
+            'meeting_end_at',
+            currentEnd,
+            (isoString) => {
+                selectedRecording.value.meeting_end_at = isoString;
+                saveInlineMeetingTimes();
+            }
+        );
+    };
+
+    const effectiveMeetingEnd = (recording) => {
+        if (!recording) return null;
+        if (recording.meeting_end_at) return recording.meeting_end_at;
+        if (recording.meeting_date && recording.audio_duration) {
+            try {
+                const start = new Date(
+                    typeof recording.meeting_date === 'string'
+                    && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(recording.meeting_date)
+                    && !/(?:Z|[+-]\d{2}:?\d{2})$/.test(recording.meeting_date)
+                        ? recording.meeting_date.replace(' ', 'T') + 'Z'
+                        : recording.meeting_date
+                );
+                if (!isNaN(start.getTime())) {
+                    return new Date(start.getTime() + Number(recording.audio_duration) * 1000).toISOString().slice(0, 19);
+                }
+            } catch (_) { /* ignore */ }
+        }
+        return null;
+    };
+
+    // Save meeting start/end inline
+    const saveInlineMeetingTimes = async () => {
         if (!selectedRecording.value) return;
 
         const fullPayload = {
@@ -625,7 +663,8 @@ export function useModals(state, utils) {
             participants: selectedRecording.value.participants,
             notes: selectedRecording.value.notes,
             summary: selectedRecording.value.summary,
-            meeting_date: selectedRecording.value.meeting_date
+            meeting_date: selectedRecording.value.meeting_date,
+            meeting_end_at: selectedRecording.value.meeting_end_at
         };
 
         try {
@@ -640,13 +679,26 @@ export function useModals(state, utils) {
             });
 
             const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Failed to save meeting date');
+            if (!response.ok) throw new Error(data.error || 'Failed to save meeting time');
 
-            showToast('Meeting date updated!', 'fa-calendar-check');
+            // Keep list row in sync for sidebar grouping
+            const index = recordings.value.findIndex(r => r.id === selectedRecording.value.id);
+            if (index !== -1) {
+                recordings.value[index] = {
+                    ...recordings.value[index],
+                    meeting_date: selectedRecording.value.meeting_date,
+                    meeting_end_at: selectedRecording.value.meeting_end_at,
+                };
+            }
+
+            showToast('Meeting time updated!', 'fa-calendar-check');
         } catch (error) {
             showToast(`Failed to save: ${error.message}`, 'fa-exclamation-circle', 3000, 'error');
         }
     };
+
+    // Back-compat alias
+    const saveInlineMeetingDate = saveInlineMeetingTimes;
 
     return {
         // Edit modal
@@ -700,6 +752,9 @@ export function useModals(state, utils) {
         clearDateTime,
         formatPickerPreview,
         applyDateTime,
-        openMeetingDatePicker
+        openMeetingDatePicker,
+        openMeetingEndPicker,
+        effectiveMeetingEnd,
+        saveInlineMeetingTimes,
     };
 }

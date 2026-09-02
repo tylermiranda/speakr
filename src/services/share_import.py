@@ -7,7 +7,7 @@ import os
 import re
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 from urllib.parse import urljoin, urlparse
 
@@ -57,6 +57,7 @@ class SharePayload:
     title: Optional[str]
     participants: Optional[str]
     meeting_date: Optional[datetime]
+    meeting_end_at: Optional[datetime]
     mime_type: Optional[str]
     original_filename: Optional[str]
     transcription: Optional[str]
@@ -65,6 +66,21 @@ class SharePayload:
     speaker_embeddings: Optional[dict]
     audio_available: bool
     audio_duration_seconds: Optional[float]
+
+
+def _derive_meeting_end(
+    meeting_date: Optional[datetime],
+    meeting_end_at: Optional[datetime],
+    audio_duration_seconds: Optional[float],
+) -> Optional[datetime]:
+    if meeting_end_at:
+        return meeting_end_at
+    if meeting_date and audio_duration_seconds:
+        try:
+            return meeting_date + timedelta(seconds=float(audio_duration_seconds))
+        except (TypeError, ValueError):
+            return None
+    return None
 
 
 def parse_share_url(raw_url: str) -> ParsedShareUrl:
@@ -156,6 +172,7 @@ def _payload_from_export_json(data: dict, public_id: str) -> SharePayload:
         title=data.get("title"),
         participants=data.get("participants"),
         meeting_date=_parse_meeting_date(data.get("meeting_date")),
+        meeting_end_at=_parse_meeting_date(data.get("meeting_end_at")),
         mime_type=data.get("mime_type"),
         original_filename=data.get("original_filename"),
         transcription=transcription,
@@ -221,6 +238,7 @@ def _payload_from_share_html(html: str, public_id: str) -> SharePayload:
         title=data.get("title"),
         participants=data.get("participants"),
         meeting_date=_parse_meeting_date(data.get("meeting_date")),
+        meeting_end_at=None,
         mime_type=data.get("mime_type"),
         original_filename=None,
         transcription=transcription,
@@ -441,6 +459,12 @@ def import_recording_from_share_url(*, owner, share_url: str) -> dict:
 
         now = datetime.utcnow()
         title = (payload.title or "").strip() or f"Imported share {parsed.public_id}"
+        meeting_date = payload.meeting_date or now
+        meeting_end_at = _derive_meeting_end(
+            meeting_date,
+            payload.meeting_end_at,
+            payload.audio_duration_seconds,
+        )
         recording = Recording(
             user_id=owner.id,
             title=title[:200],
@@ -450,7 +474,8 @@ def import_recording_from_share_url(*, owner, share_url: str) -> dict:
             summary=payload.summary,
             status="COMPLETED",
             audio_path=None,
-            meeting_date=payload.meeting_date or now,
+            meeting_date=meeting_date,
+            meeting_end_at=meeting_end_at,
             file_size=file_size,
             original_filename=payload.original_filename or safe_name,
             mime_type=payload.mime_type,

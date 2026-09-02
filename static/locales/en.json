@@ -866,6 +866,7 @@
     "language": "Language",
     "maxSpeakers": "Max Speakers",
     "meetingDate": "Meeting Date",
+    "meetingEnd": "Meeting End",
     "minSpeakers": "Min Speakers",
     "minutes": "Minutes",
     "notes": "Notes",
@@ -1724,7 +1725,9 @@
   },
   "detail": {
     "hints": "Hints",
-    "hintsUsed": "Transcription hints used for this recording"
+    "hintsUsed": "Transcription hints used for this recording",
+    "editMeetingStart": "Click to edit meeting start",
+    "editMeetingEnd": "Click to edit meeting end"
   },
   "timestamps": {
     "title": "Transcript Timestamp Availability",

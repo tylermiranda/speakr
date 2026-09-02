@@ -168,6 +168,7 @@ def export_shared_recording(public_id):
         'title': recording.title,
         'participants': recording.participants,
         'meeting_date': recording.meeting_date.isoformat() if recording.meeting_date else None,
+        'meeting_end_at': recording.meeting_end_at.isoformat() if recording.meeting_end_at else None,
         'mime_type': recording.mime_type,
         'original_filename': recording.original_filename,
         'transcription': recording.transcription,

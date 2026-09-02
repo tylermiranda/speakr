@@ -30,6 +30,9 @@ class Recording(db.Model):
     audio_path = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     meeting_date = db.Column(db.DateTime, nullable=True)
+    # Optional meeting end (naive UTC, same convention as meeting_date).
+    # When null, UI may derive end as meeting_date + audio_duration_seconds.
+    meeting_end_at = db.Column(db.DateTime, nullable=True)
     file_size = db.Column(db.Integer)  # Store file size in bytes
     original_filename = db.Column(db.String(500), nullable=True)  # Store the original uploaded filename
     is_inbox = db.Column(db.Boolean, default=True)  # New recordings are marked as inbox by default
@@ -353,6 +356,7 @@ class Recording(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
             'meeting_date': self.meeting_date.isoformat() if self.meeting_date else None,
+            'meeting_end_at': self.meeting_end_at.isoformat() if self.meeting_end_at else None,
             'file_size': self.file_size,
             'original_filename': self.original_filename,
             'mime_type': self.mime_type,  # cheap column read; lets the sidebar mark video recordings without opening them
@@ -373,6 +377,7 @@ class Recording(db.Model):
             'public_share_count': public_share_count,
             'audio_duration': self.get_audio_duration(),
             'keep_audio_only': self.keep_audio_only,
+            'processing_source': self.processing_source,
         }
 
     def _dup_from_map_or_query(self, duplicate_info_map):
@@ -437,6 +442,7 @@ class Recording(db.Model):
             'transcription_duration_seconds': self.transcription_duration_seconds,
             'summarization_duration_seconds': self.summarization_duration_seconds,
             'meeting_date': self.meeting_date.isoformat() if self.meeting_date else None,
+            'meeting_end_at': self.meeting_end_at.isoformat() if self.meeting_end_at else None,
             'file_size': self.file_size,
             'original_filename': self.original_filename,
             'user_id': self.user_id,
@@ -458,6 +464,7 @@ class Recording(db.Model):
             'shared_with_count': shared_with_count,
             'public_share_count': public_share_count,
             'keep_audio_only': self.keep_audio_only,
+            'processing_source': self.processing_source,
         }
 
         # Only compute expensive HTML conversions when explicitly requested

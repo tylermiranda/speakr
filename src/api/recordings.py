@@ -2128,12 +2128,24 @@ def save_metadata():
                 state.personal_notes = sanitize_html(data['notes']) if data['notes'] else data['notes']
 
         # Determine if any fields requiring edit permission are being updated
-        edit_fields = ['title', 'participants', 'summary', 'meeting_date']
+        edit_fields = ['title', 'participants', 'summary', 'meeting_date', 'meeting_end_at']
         requires_edit = any(field in data for field in edit_fields)
 
         # If edit fields are present, check for edit permission
         if requires_edit and not has_recording_access(recording, current_user, require_edit=True):
             return jsonify({'error': 'You do not have permission to edit this recording'}), 403
+
+        def _parse_meeting_datetime(date_str, existing=None):
+            """Parse ISO or date-only into naive UTC; None clears."""
+            if not date_str:
+                return None
+            try:
+                return to_utc_naive(datetime.fromisoformat(date_str.replace('Z', '+00:00')))
+            except (ValueError, AttributeError):
+                parsed_date = datetime.strptime(date_str, '%Y-%m-%d')
+                if existing:
+                    return datetime.combine(parsed_date.date(), existing.time())
+                return parsed_date
 
         # Update fields requiring edit permission
         if requires_edit:
@@ -2145,27 +2157,25 @@ def save_metadata():
                 recording.summary = sanitize_html(data['summary']) if data['summary'] else data['summary']
             if 'meeting_date' in data:
                 try:
-                    date_str = data['meeting_date']
-                    if date_str:
-                        # Try to parse as full ISO datetime first. meeting_date is
-                        # stored as naive UTC (like created_at), so convert any
-                        # zone-aware input to UTC before storing.
-                        try:
-                            recording.meeting_date = to_utc_naive(datetime.fromisoformat(date_str.replace('Z', '+00:00')))
-                        except (ValueError, AttributeError):
-                            # Fall back to date-only format, preserve existing time if available
-                            parsed_date = datetime.strptime(date_str, '%Y-%m-%d')
-                            if recording.meeting_date:
-                                # Preserve existing time
-                                existing_time = recording.meeting_date.time()
-                                recording.meeting_date = datetime.combine(parsed_date.date(), existing_time)
-                            else:
-                                # No existing time, use the parsed date with midnight time
-                                recording.meeting_date = parsed_date
-                    else:
-                        recording.meeting_date = None
+                    recording.meeting_date = _parse_meeting_datetime(
+                        data.get('meeting_date'), recording.meeting_date
+                    )
                 except (ValueError, TypeError) as e:
                     current_app.logger.warning(f"Could not parse meeting_date '{data.get('meeting_date')}': {e}")
+            if 'meeting_end_at' in data:
+                try:
+                    recording.meeting_end_at = _parse_meeting_datetime(
+                        data.get('meeting_end_at'), recording.meeting_end_at
+                    )
+                except (ValueError, TypeError) as e:
+                    current_app.logger.warning(f"Could not parse meeting_end_at '{data.get('meeting_end_at')}': {e}")
+
+            if (
+                recording.meeting_date
+                and recording.meeting_end_at
+                and recording.meeting_end_at < recording.meeting_date
+            ):
+                return jsonify({'error': 'Meeting end must be on or after the start.'}), 400
 
         # Handle per-user status fields (only requires view permission)
         if 'is_inbox' in data or 'is_highlighted' in data:

@@ -321,7 +321,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const _savedSortBy = localStorage.getItem('recordingsSortBy');
             const sortBy = ref((_savedSortBy === 'meeting_date' || _savedSortBy === 'created_at')
                 ? _savedSortBy
-                : 'created_at');
+                : 'meeting_date');
             const selectedTagFilter = ref(null);
 
             // --- UI State ---
@@ -2890,8 +2890,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                         return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
                     };
 
+                    const uploadedLabel = recording.processing_source === 'share_import'
+                        ? `Imported: ${formatDisplayDate(recording.created_at)}`
+                        : `Uploaded: ${formatDisplayDate(recording.created_at)}`;
+
                     // Build tooltip with processing breakdown
-                    let tooltipParts = [`Processed: ${formatDisplayDate(recording.completed_at || recording.created_at)}`];
+                    let tooltipParts = [`${uploadedLabel}`];
+                    if (recording.completed_at && recording.completed_at !== recording.created_at) {
+                        tooltipParts.push(`Processed: ${formatDisplayDate(recording.completed_at)}`);
+                    }
 
                     if (recording.transcription_duration_seconds) {
                         tooltipParts.push(`Transcription: ${formatProcessingDuration(recording.transcription_duration_seconds)}`);
@@ -2900,11 +2907,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         tooltipParts.push(`Summarization: ${formatProcessingDuration(recording.summarization_duration_seconds)}`);
                     }
 
-                    const tooltipText = tooltipParts.length > 1 ? tooltipParts.join('\n') : null;
+                    const tooltipText = tooltipParts.length > 1 ? tooltipParts.join('\n') : uploadedLabel;
 
                     metadata.push({
                         icon: 'fas fa-history',
-                        text: formatDisplayDate(recording.created_at),
+                        text: uploadedLabel,
                         fullText: tooltipText
                     });
                 }
