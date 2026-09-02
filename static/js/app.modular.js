@@ -318,7 +318,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // have to switch to Meeting date every time they open the app
             // (discussion #263). Validate against the known set so a stale or
             // tampered localStorage value cannot put us in an unknown state.
-            const _savedSortBy = localStorage.getItem('recordingsSortBy');
+            const _savedSortBy = localStorage.getItem('recordingsSortBy_v2');
             const sortBy = ref((_savedSortBy === 'meeting_date' || _savedSortBy === 'created_at')
                 ? _savedSortBy
                 : 'meeting_date');
@@ -3616,7 +3616,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             watch(sortBy, (newValue) => {
-                localStorage.setItem('recordingsSortBy', newValue);
+                localStorage.setItem('recordingsSortBy_v2', newValue);
                 recordingsComposable.loadRecordings(1, false, searchQuery.value);
             });
 
