@@ -150,6 +150,37 @@ def view_shared_recording(public_id):
     return render_template('share.html', recording=recording_data, transcript=processed_transcript, readable_mode=READABLE_PUBLIC_LINKS)
 
 
+@shares_bp.route('/share/<string:public_id>/export.json', methods=['GET'])
+def export_shared_recording(public_id):
+    """Machine-readable export of a publicly shared recording for cross-instance import."""
+    share = Share.query.filter_by(public_id=public_id).first_or_404()
+    recording = share.recording
+    if not recording:
+        return jsonify({'error': 'Recording not found'}), 404
+
+    audio_available = bool(
+        recording.audio_path and recording.audio_deleted_at is None
+    )
+    payload = {
+        'format': 'speakr-share-export',
+        'version': 1,
+        'public_id': share.public_id,
+        'title': recording.title,
+        'participants': recording.participants,
+        'meeting_date': recording.meeting_date.isoformat() if recording.meeting_date else None,
+        'mime_type': recording.mime_type,
+        'original_filename': recording.original_filename,
+        'transcription': recording.transcription,
+        'summary': recording.summary if share.share_summary else None,
+        'notes': recording.notes if share.share_notes else None,
+        'speaker_embeddings': recording.speaker_embeddings,
+        'audio_available': audio_available,
+        'audio_url': f'/share/audio/{share.public_id}',
+        'audio_duration_seconds': recording.audio_duration_seconds,
+    }
+    return jsonify(payload)
+
+
 @shares_bp.route('/share/audio/<string:public_id>')
 def get_shared_audio(public_id):
     """Serve audio file for a publicly shared recording."""

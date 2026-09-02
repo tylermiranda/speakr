@@ -61,6 +61,86 @@ export function useUpload(state, utils) {
 
     const { setGlobalError, showToast, formatFileSize, onChatComplete, t } = utils;
 
+    const shareImportUrl = ref('');
+    const shareImporting = ref(false);
+    const shareImportError = ref('');
+
+    const importFromShareLink = async () => {
+        const url = (shareImportUrl.value || '').trim();
+        shareImportError.value = '';
+        if (!url) {
+            shareImportError.value = (t && t('upload.importShareUrlRequired')) || 'Paste a share URL first.';
+            return;
+        }
+        shareImporting.value = true;
+        try {
+            const sendImport = async (csrfToken) => {
+                const headers = { 'Content-Type': 'application/json' };
+                if (csrfToken) headers['X-CSRFToken'] = csrfToken;
+                const response = await fetch('/api/recordings/import-from-share', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ url }),
+                });
+                const rawText = await response.text();
+                let data = {};
+                try { data = rawText ? JSON.parse(rawText) : {}; } catch (_) { /* non-JSON */ }
+                if (isCsrfRejection(response.status, rawText)) {
+                    const err = new Error(data.error || 'CSRF');
+                    err.isCsrfRejection = true;
+                    throw err;
+                }
+                if (!response.ok) {
+                    throw new Error(data.error || ((t && t('upload.importShareFailed')) || 'Import failed.'));
+                }
+                return data;
+            };
+
+            let data;
+            try {
+                data = await sendImport(await getUploadCsrfToken());
+            } catch (err) {
+                if (!err.isCsrfRejection) throw err;
+                data = await sendImport(await getUploadCsrfToken());
+            }
+
+            const recording = data.recording;
+            if (!recording) {
+                throw new Error((t && t('upload.importShareFailed')) || 'Import failed.');
+            }
+
+            const existingIdx = recordings.value.findIndex(r => r.id === recording.id);
+            if (existingIdx === -1) {
+                recordings.value.unshift(recording);
+                totalRecordings.value++;
+            } else {
+                recordings.value[existingIdx] = recording;
+            }
+
+            selectedRecording.value = recording;
+            currentView.value = 'detail';
+            if (showUploadModal) showUploadModal.value = false;
+            shareImportUrl.value = '';
+
+            if (data.already_imported) {
+                showToast?.(
+                    (t && t('upload.importShareAlreadyExists')) || 'Already imported — opened existing recording.',
+                    'fa-copy'
+                );
+            } else {
+                showToast?.(
+                    (t && t('upload.importShareSuccess')) || 'Meeting imported.',
+                    'fa-file-import'
+                );
+            }
+        } catch (e) {
+            console.error('[Upload] importFromShareLink failed:', e);
+            shareImportError.value = e.message || ((t && t('upload.importShareFailed')) || 'Import failed.');
+        } finally {
+            shareImporting.value = false;
+        }
+    };
+
     // Probe a File for its audio/video duration without uploading it.
     // Uses a hidden <audio> or <video> element with preload="metadata"
     // so the browser only reads the container headers, not the whole
@@ -1253,6 +1333,11 @@ export function useUpload(state, utils) {
         clearIncognitoRecordingWithConfirm,
         selectIncognitoRecording,
         loadIncognitoRecording,
-        hasIncognitoRecording
+        hasIncognitoRecording,
+        // Share-link import
+        shareImportUrl,
+        shareImporting,
+        shareImportError,
+        importFromShareLink,
     };
 }

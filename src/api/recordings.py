@@ -2394,6 +2394,25 @@ def upload_file():
     )
 
 
+@recordings_bp.route('/api/recordings/import-from-share', methods=['POST'])
+@login_required
+def import_recording_from_share():
+    """Import a completed recording from another Speakr instance's public share URL."""
+    from src.services.share_import import ShareImportError, import_recording_from_share_url
+
+    data = request.get_json(silent=True) or {}
+    share_url = data.get('url') or data.get('share_url') or ''
+    try:
+        result = import_recording_from_share_url(owner=current_user, share_url=share_url)
+        return jsonify(result), 200 if result.get('already_imported') else 201
+    except ShareImportError as exc:
+        return jsonify({'error': exc.message}), exc.status_code
+    except Exception as exc:
+        current_app.logger.error(f"Share import failed: {exc}", exc_info=True)
+        return jsonify({'error': 'An unexpected error occurred while importing the share.'}), 500
+
+
+
 def ingest_uploaded_recording(
     *,
     owner,

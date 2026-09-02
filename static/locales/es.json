@@ -1772,7 +1772,16 @@
     "largeVideoNotice": "Archivo de vídeo grande. La subida continuará; la transcripción puede tardar más y usa el troceado en el servidor.",
     "options": "Opciones",
     "transcriptionOptions": "Opciones de transcripción",
-    "uploadAndAddMore": "Subir y añadir más"
+    "uploadAndAddMore": "Subir y añadir más",
+    "importFromShare": "Import from share link",
+    "importFromShareHelp": "Paste a public Speakr share URL to copy the audio, transcript, and summary into your library.",
+    "importFromSharePlaceholder": "https://…/share/…",
+    "importShare": "Import",
+    "importingShare": "Importing…",
+    "importShareUrlRequired": "Paste a share URL first.",
+    "importShareFailed": "Could not import that share.",
+    "importShareSuccess": "Meeting imported.",
+    "importShareAlreadyExists": "Already imported — opened existing recording."
   },
   "uploadProgress": {
     "title": "Progreso de Carga"

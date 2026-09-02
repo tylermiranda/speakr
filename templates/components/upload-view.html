@@ -37,6 +37,31 @@
             </div>
             <input ref="fileInput" type="file" @change="handleFileSelect" accept="audio/*,video/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,.wma,.aiff,.opus,.caf,.3gp,.3gpp,.amr,.mp4,.mov,.webm,.mkv,.avi,.m4v,.ts,.mts,.wmv,.flv,.mpeg,.mpg,.ogv,.vob,.asf" multiple class="hidden">
 
+            <!-- Import from another Speakr public share link -->
+            <div class="mt-4 pt-4 border-t border-[var(--border-secondary)]">
+                <h4 class="text-xs font-medium text-[var(--text-secondary)] mb-2">
+                    <i class="fas fa-link mr-1"></i>
+                    <span v-text="t('upload.importFromShare')"></span>
+                </h4>
+                <p class="text-[11px] text-[var(--text-muted)] mb-2" v-text="t('upload.importFromShareHelp')"></p>
+                <div class="flex gap-2">
+                    <input type="url"
+                           v-model="shareImportUrl"
+                           :placeholder="t('upload.importFromSharePlaceholder')"
+                           :disabled="shareImporting"
+                           @keydown.enter.prevent="importFromShareLink"
+                           class="flex-1 min-w-0 px-2.5 py-1.5 text-sm rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-tertiary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)]">
+                    <button type="button"
+                            @click="importFromShareLink"
+                            :disabled="shareImporting || !(shareImportUrl || '').trim()"
+                            class="px-3 py-1.5 text-sm rounded-lg bg-[var(--bg-accent)] text-[var(--text-accent)] border border-[var(--border-accent)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
+                        <i :class="shareImporting ? 'fas fa-spinner fa-spin' : 'fas fa-file-import'" class="mr-1"></i>
+                        <span v-text="shareImporting ? t('upload.importingShare') : t('upload.importShare')"></span>
+                    </button>
+                </div>
+                <p v-if="shareImportError" class="mt-1.5 text-[11px] text-red-500" v-text="shareImportError"></p>
+            </div>
+
             <!-- Queued Files Display -->
             <div v-if="pendingQueueFiles.length > 0" class="mt-3">
                 <div class="flex items-center justify-between mb-1.5">
