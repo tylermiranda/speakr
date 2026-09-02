@@ -19,8 +19,10 @@ changes.txt
 !README.md
 !CLA.md
 !CONTRIBUTING.md
+!AGENTS.md
 !.github/CLA-SETUP.md
 !docs/**/*.md
+!.memory/**/*.md
 docker-compose.dev.yml
 docker-compose.lite.yml
 docker-compose.postgres.yml
