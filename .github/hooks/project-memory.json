@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "python3 .memory/hooks/session_context.py",
+        "powershell": "python3 .memory/hooks/session_context.py",
+        "cwd": ".",
+        "timeoutSec": 20
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "matcher": ".*",
+        "bash": "python3 .memory/hooks/edit_tracker.py",
+        "powershell": "python3 .memory/hooks/edit_tracker.py",
+        "cwd": ".",
+        "timeoutSec": 10
+      }
+    ],
+    "sessionEnd": [
+      {
+        "type": "command",
+        "bash": "python3 .memory/hooks/closeout_prompt.py",
+        "powershell": "python3 .memory/hooks/closeout_prompt.py",
+        "cwd": ".",
+        "timeoutSec": 15
+      }
+    ]
+  }
+}
