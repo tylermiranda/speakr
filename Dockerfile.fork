@@ -1,0 +1,6 @@
+# Overlay fork image for Tower / GHCR.
+# Keeps upstream runtime deps; layers our src/static/templates on top.
+FROM learnedmachine/speakr:latest
+COPY src/ /app/src/
+COPY static/ /app/static/
+COPY templates/ /app/templates/
