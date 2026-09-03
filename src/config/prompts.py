@@ -18,6 +18,7 @@ OUTPUT FORMAT (match this header structure exactly at the very top of your respo
 # {Meeting Title or inferred short title}
 **Date:** {meeting date}
 **Time:** {meeting time}
+**Duration:** {meeting duration}
 **Participants:**
 - {Participant 1}
 - {Participant 2}
@@ -44,9 +45,9 @@ OUTPUT FORMAT (match this header structure exactly at the very top of your respo
 - {Important details...}
 
 Rules:
-- Always start the response with the Title, Date, Time, and Participants header.
-- Use values from Context for Title, Date, Time, and Participants when available; otherwise infer from the transcript dialogue.
-- If a value is unknown, write "unspecified" — never omit Title, Date, Time, or Participants.
+- Always start the response with the Title, Date, Time, Duration, and Participants header.
+- Use values from Context for Title, Date, Time, Duration, and Participants when available; otherwise infer from the transcript dialogue.
+- If a value is unknown, write "unspecified" — never omit Title, Date, Time, Duration, or Participants.
 - Make sure every important nuance, decision, and commitment is covered."""
 
 

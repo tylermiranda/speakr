@@ -239,6 +239,7 @@ def test_summary_prompt_includes_meeting_identity_metadata():
             user.id,
             title="Q1 Planning Meeting",
             meeting_date=datetime(2024, 3, 15, 14, 30),
+            audio_duration_seconds=3661.0,
             participants="Alice, Bob",
         )
         rid = rec.id
@@ -258,11 +259,13 @@ def test_summary_prompt_includes_meeting_identity_metadata():
         assert "Recording title: Q1 Planning Meeting" in combined
         assert "Recording date: March 15, 2024" in combined
         assert "Recording time: 2:30 PM" in combined
+        assert "Recording duration: 1h 1m 1s" in combined
         assert "Participants: Alice, Bob" in combined
         assert "Required in the summary output" in user_msg
         assert "**Title**" in user_msg
         assert "**Date**" in user_msg
         assert "**Time**" in user_msg
+        assert "**Duration**" in user_msg
         assert "**Participants**" in user_msg
 
 

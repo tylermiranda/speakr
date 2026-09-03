@@ -28,6 +28,7 @@ def test_default_summary_prompt_is_meaningful():
         "**Title:**",
         "**Date:**",
         "**Time:**",
+        "**Duration:**",
         "**Participants:**",
     ):
         assert section in DEFAULT_SUMMARY_PROMPT, f"missing expected section: {section}"

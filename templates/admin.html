@@ -1040,6 +1040,7 @@
 <span v-html="formatPromptPreview('- Recording title: {recording_title}')"></span> <span class="text-[var(--text-muted)]">(if title is set)</span>
 <span v-html="formatPromptPreview('- Recording date: {recording_date}')"></span> <span class="text-[var(--text-muted)]">(if meeting date is set)</span>
 <span v-html="formatPromptPreview('- Recording time: {recording_time}')"></span> <span class="text-[var(--text-muted)]">(if meeting time is set and not midnight)</span>
+<span v-html="formatPromptPreview('- Recording duration: {recording_duration}')"></span> <span class="text-[var(--text-muted)]">(if audio duration is known)</span>
 <span v-html="formatPromptPreview('- Participants: {participants}')"></span> <span class="text-[var(--text-muted)]">(if participants are set)</span>
 <span v-html="formatPromptPreview('- Folder: {folder_name}')"></span> <span class="text-[var(--text-muted)]">(if recording is in a folder)</span>
 <span v-html="formatPromptPreview('- Tags applied to this transcript by the user: {tag_names}')"></span> <span class="text-[var(--text-muted)]">(if tags exist)</span>

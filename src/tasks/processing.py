@@ -746,6 +746,19 @@ def generate_summary_only_task(app_context, recording_id, custom_prompt_override
                 context_parts.append(
                     f"Recording time: {md.strftime('%I:%M %p').lstrip('0')}"
                 )
+        audio_dur = recording.get_audio_duration()
+        if audio_dur and audio_dur > 0:
+            dur_sec = int(round(float(audio_dur)))
+            hrs = dur_sec // 3600
+            mins = (dur_sec % 3600) // 60
+            secs = dur_sec % 60
+            if hrs > 0:
+                dur_str = f"{hrs}h {mins}m" if secs == 0 else f"{hrs}h {mins}m {secs}s"
+            elif mins > 0:
+                dur_str = f"{mins}m" if secs == 0 else f"{mins}m {secs}s"
+            else:
+                dur_str = f"{secs}s"
+            context_parts.append(f"Recording duration: {dur_str}")
         if recording.participants and recording.participants.strip():
             context_parts.append(f"Participants: {recording.participants.strip()}")
 
@@ -781,7 +794,7 @@ def generate_summary_only_task(app_context, recording_id, custom_prompt_override
         metadata_output_requirement = (
             "Required in the summary output (near the top, adapted to the "
             "document style): meeting/recording **Title**, **Date**, **Time** "
-            "(when known), and **Participants**. Prefer values from Context "
+            "(when known), **Duration** (when known), and **Participants**. Prefer values from Context "
             "above; otherwise infer from the transcript. If a value is still "
             "unknown, write \"unspecified\" — do not omit these fields."
         )
