@@ -16,7 +16,7 @@ _(none yet)_
 
 ## Concepts
 
-_(none yet)_
+- [Summary identity metadata](concepts/summary-identity-metadata.md) — title/date/time/participants required in every summary output
 
 ## Raw / ephemeral
 

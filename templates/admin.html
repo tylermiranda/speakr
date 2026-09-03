@@ -1037,8 +1037,10 @@
                                     <h5 class="text-sm font-semibold text-[var(--text-accent)] mb-2">${t('adminDashboard.systemPrompt')}:</h5>
                                     <div class="bg-[var(--bg-secondary)] p-4 rounded-md border border-[var(--border-secondary)]">
                                         <pre class="text-xs text-[var(--text-secondary)] whitespace-pre-wrap font-mono"><span v-html="formatPromptPreview('You are an AI assistant that generates comprehensive summaries for meeting transcripts. Respond only with the summary in Markdown format. Do NOT use markdown code blocks (```markdown). Provide raw markdown content directly.\n\nContext:\n- Current date: {current_date}')"></span>
-<span v-html="formatPromptPreview('- Recording date: {recording_date}')"></span> <span class="text-[var(--text-muted)]">(if meeting date is set)</span>
 <span v-html="formatPromptPreview('- Recording title: {recording_title}')"></span> <span class="text-[var(--text-muted)]">(if title is set)</span>
+<span v-html="formatPromptPreview('- Recording date: {recording_date}')"></span> <span class="text-[var(--text-muted)]">(if meeting date is set)</span>
+<span v-html="formatPromptPreview('- Recording time: {recording_time}')"></span> <span class="text-[var(--text-muted)]">(if meeting time is set and not midnight)</span>
+<span v-html="formatPromptPreview('- Participants: {participants}')"></span> <span class="text-[var(--text-muted)]">(if participants are set)</span>
 <span v-html="formatPromptPreview('- Folder: {folder_name}')"></span> <span class="text-[var(--text-muted)]">(if recording is in a folder)</span>
 <span v-html="formatPromptPreview('- Tags applied to this transcript by the user: {tag_names}')"></span> <span class="text-[var(--text-muted)]">(if tags exist)</span>
 <span v-html="formatPromptPreview('- Information about the user: Name: {name}, Job title: {job_title}, Company: {company}')"></span> <span class="text-[var(--text-muted)]">(only the fields the user has filled in their account)</span>

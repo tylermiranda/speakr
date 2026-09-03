@@ -7,16 +7,26 @@ imports. Previously this text was copy-pasted in three places and could drift;
 change it here only.
 """
 
+
 # The summary prompt a fresh install ships with, and the fallback used at
 # summarization time when no per-recording / tag / folder / user / admin prompt
 # is set. To change the shipped default, edit this string.
 DEFAULT_SUMMARY_PROMPT = """Identify the key issues discussed. First, give me minutes. Then, give me the key issues discussed. Then, any key takeaways. Then, any next steps (with responsible party for each step). Then, all important things that I didn't ask for but that need to be recorded. Make sure every important nuance is covered.
 
+Always open the summary with meeting identity metadata (use Context when available; otherwise infer; if still unknown write "unspecified"):
+- **Title:**
+- **Date:**
+- **Time:**
+- **Participants:**
+
 Example Format:
 
 ### Minutes
 
-**Meeting Participants:**
+**Title:** Q1 Planning Meeting
+**Date:** March 15, 2024
+**Time:** 2:00 PM
+**Participants:**
 - Bob
 - Alice
 
@@ -25,6 +35,7 @@ Example Format:
 **1. Introduction and Overview:**
 - Alice expressed interest in understanding the responsibilities at the north division and the potential for technological innovations.
 ....
+
 
 ### Key Issues Discussed
 ....

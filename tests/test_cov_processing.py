@@ -227,6 +227,45 @@ def test_summary_custom_prompt_append():
         assert "EXTRA agenda context" in sent
 
 
+def test_summary_prompt_includes_meeting_identity_metadata():
+    """Every summary call must pass title/date/time/participants in Context
+    and require those fields in the summary output — including when a custom
+    prompt override replaces the default instructions."""
+    from datetime import datetime
+
+    with app.app_context():
+        user = _make_user("sum_meta")
+        rec = _make_recording(
+            user.id,
+            title="Q1 Planning Meeting",
+            meeting_date=datetime(2024, 3, 15, 14, 30),
+            participants="Alice, Bob",
+        )
+        rid = rec.id
+        with _patch_llm(content="Identity header summary") as mock_call, \
+             patch.object(proc, "ENABLE_INQUIRE_MODE", False):
+            proc.generate_summary_only_task(
+                app.app_context(), rid,
+                custom_prompt_override="Focus only on decisions.",
+            )
+
+        messages = mock_call.call_args.kwargs["messages"]
+        system_msg = messages[0]["content"]
+        user_msg = messages[1]["content"]
+        # Prefix-cache mode puts Context in the user suffix; classic mode puts
+        # it in the system message. Accept either layout.
+        combined = f"{system_msg}\n{user_msg}"
+        assert "Recording title: Q1 Planning Meeting" in combined
+        assert "Recording date: March 15, 2024" in combined
+        assert "Recording time: 2:30 PM" in combined
+        assert "Participants: Alice, Bob" in combined
+        assert "Required in the summary output" in user_msg
+        assert "**Title**" in user_msg
+        assert "**Date**" in user_msg
+        assert "**Time**" in user_msg
+        assert "**Participants**" in user_msg
+
+
 def test_summary_event_extraction_invoked_when_user_extract_events():
     with app.app_context():
         user = _make_user("sum_events", extract_events=True)

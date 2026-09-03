@@ -113,36 +113,49 @@ def test_meeting_date_priority():
 
 
 def test_summary_context_includes_metadata():
-    """Summary context should include recording date and title."""
+    """Summary context should include title, date, time, and participants."""
     context_parts = []
     current_date = datetime.now().strftime("%B %d, %Y")
     context_parts.append(f"Current date: {current_date}")
 
-    # Simulate recording with meeting_date and title
-    meeting_date = datetime(2024, 3, 15)
+    # Simulate recording with meeting_date (incl. time), title, and participants
+    meeting_date = datetime(2024, 3, 15, 14, 30)
     title = "Q1 Planning Meeting"
+    participants = "Alice, Bob"
 
-    if meeting_date:
-        context_parts.append(f"Recording date: {meeting_date.strftime('%B %d, %Y')}")
     if title:
         context_parts.append(f"Recording title: {title}")
+    if meeting_date:
+        context_parts.append(f"Recording date: {meeting_date.strftime('%B %d, %Y')}")
+        if meeting_date.hour or meeting_date.minute or meeting_date.second:
+            context_parts.append(
+                f"Recording time: {meeting_date.strftime('%I:%M %p').lstrip('0')}"
+            )
+    if participants and participants.strip():
+        context_parts.append(f"Participants: {participants.strip()}")
 
     context = "\n".join(context_parts)
-    assert "Recording date: March 15, 2024" in context
     assert "Recording title: Q1 Planning Meeting" in context
+    assert "Recording date: March 15, 2024" in context
+    assert "Recording time: 2:30 PM" in context
+    assert "Participants: Alice, Bob" in context
 
     # Without metadata, those lines should be absent
     context_parts2 = [f"Current date: {current_date}"]
     meeting_date2 = None
     title2 = None
-    if meeting_date2:
-        context_parts2.append(f"Recording date: {meeting_date2.strftime('%B %d, %Y')}")
+    participants2 = None
     if title2:
         context_parts2.append(f"Recording title: {title2}")
+    if meeting_date2:
+        context_parts2.append(f"Recording date: {meeting_date2.strftime('%B %d, %Y')}")
+    if participants2 and participants2.strip():
+        context_parts2.append(f"Participants: {participants2.strip()}")
 
     context2 = "\n".join(context_parts2)
     assert "Recording date:" not in context2
     assert "Recording title:" not in context2
+    assert "Participants:" not in context2
 
     print("  PASS: summary context includes recording metadata")
 

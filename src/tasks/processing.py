@@ -733,11 +733,21 @@ def generate_summary_only_task(app_context, recording_id, custom_prompt_override
         context_parts = []
         context_parts.append(f"Current date: {current_date}")
 
-        # Add recording metadata to context
-        if recording.meeting_date:
-            context_parts.append(f"Recording date: {recording.meeting_date.strftime('%B %d, %Y')}")
+        # Add recording metadata to context so every summarization prompt can
+        # put title / date / time / participants in the summary output.
         if recording.title:
             context_parts.append(f"Recording title: {recording.title}")
+        if recording.meeting_date:
+            md = recording.meeting_date
+            context_parts.append(f"Recording date: {md.strftime('%B %d, %Y')}")
+            # meeting_date is a DateTime; surface the time when it is not midnight
+            # (midnight usually means "date only" was stored).
+            if md.hour or md.minute or md.second:
+                context_parts.append(
+                    f"Recording time: {md.strftime('%I:%M %p').lstrip('0')}"
+                )
+        if recording.participants and recording.participants.strip():
+            context_parts.append(f"Participants: {recording.participants.strip()}")
 
         # Add folder information if recording is in a folder
         if recording.folder:
@@ -764,6 +774,20 @@ def generate_summary_only_task(app_context, recording_id, custom_prompt_override
                 context_parts.append(f"Information about the user: {', '.join(user_context_parts)}")
 
         context_section = "Context:\n" + "\n".join(f"- {part}" for part in context_parts)
+
+        # Standing requirement for every summarization path (default, tag, folder,
+        # user, admin, or one-off override): the summary output itself must
+        # surface meeting identity metadata when it is available in Context.
+        metadata_output_requirement = (
+            "Required in the summary output (near the top, adapted to the "
+            "document style): meeting/recording **Title**, **Date**, **Time** "
+            "(when known), and **Participants**. Prefer values from Context "
+            "above; otherwise infer from the transcript. If a value is still "
+            "unknown, write \"unspecified\" — do not omit these fields."
+        )
+        summarization_instructions = (
+            f"{summarization_instructions}\n\n{metadata_output_requirement}"
+        )
 
         if PREFIX_CACHE_OPTIMIZED_PROMPTS:
             # Shared-prefix layout: the system message and the user-message bytes
