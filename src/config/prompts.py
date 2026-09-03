@@ -13,34 +13,41 @@ change it here only.
 # is set. To change the shipped default, edit this string.
 DEFAULT_SUMMARY_PROMPT = """Identify the key issues discussed. First, give me minutes. Then, give me the key issues discussed. Then, any key takeaways. Then, any next steps (with responsible party for each step). Then, all important things that I didn't ask for but that need to be recorded. Make sure every important nuance is covered.
 
-Always open the summary with meeting identity metadata (use Context when available; otherwise infer; if still unknown write "unspecified"):
-- **Title:**
-- **Date:**
-- **Time:**
-- **Participants:**
+OUTPUT FORMAT (match this header structure exactly at the very top of your response):
 
-Example Format:
-
-### Minutes
-
-**Title:** Q1 Planning Meeting
-**Date:** March 15, 2024
-**Time:** 2:00 PM
+# {Meeting Title or inferred short title}
+**Date:** {meeting date}
+**Time:** {meeting time}
 **Participants:**
-- Bob
-- Alice
+- {Participant 1}
+- {Participant 2}
 
 ---
 
-**1. Introduction and Overview:**
-- Alice expressed interest in understanding the responsibilities at the north division and the potential for technological innovations.
-....
+### Minutes
 
+**1. {First Topic / Overview}:**
+- {Details discussed...}
 
 ### Key Issues Discussed
-....
+1. {Issue 1...}
 
-//and so on and so forth. Make sure not to miss any nuance or details."""
+### Key Takeaways
+- {Key takeaway 1...}
+
+### Next Steps
+| Action | Responsible Party |
+|--------|-------------------|
+| {Action item} | {Responsible person} |
+
+### Additional Important Details
+- {Important details...}
+
+Rules:
+- Always start the response with the Title, Date, Time, and Participants header.
+- Use values from Context for Title, Date, Time, and Participants when available; otherwise infer from the transcript dialogue.
+- If a value is unknown, write "unspecified" — never omit Title, Date, Time, or Participants.
+- Make sure every important nuance, decision, and commitment is covered."""
 
 
 # The admin-editable instruction body for CONTEXTUAL speaker labelling — used
