@@ -17,6 +17,7 @@ _(none yet)_
 ## Concepts
 
 - [Summary identity metadata](concepts/summary-identity-metadata.md) — title/date/time/participants required in every summary output
+- [Manager 1:1 work-only summaries](concepts/manager-1on1-work-only-summaries.md) — never capture personal/sports small talk; scan full transcript for work
 
 ## Raw / ephemeral
 
