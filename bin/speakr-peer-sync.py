@@ -654,7 +654,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         direction = config.get("direction") or "push"
 
     limit = args.limit
-    if limit is None and config.get("limit_per_run") is not None:
+    if limit is None and not args.backfill_dates and config.get("limit_per_run") is not None:
         limit = int(config["limit_per_run"])
 
     return run(
