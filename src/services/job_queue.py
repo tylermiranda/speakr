@@ -837,6 +837,17 @@ class FairJobQueue:
                 event_type=event_type,
                 data={k: v for k, v in data.items() if v is not None},
             )
+            # Dual-live peer sync: push when the recording is fully COMPLETED.
+            if recording.status == 'COMPLETED':
+                try:
+                    from src.services.recording_sync import queue_peer_push_if_configured
+                    queue_peer_push_if_configured(recording.id)
+                except Exception as sync_err:
+                    logger.warning(
+                        "Peer sync queue failed for recording %s: %s",
+                        recording.id,
+                        sync_err,
+                    )
 
     def _emit_failure_webhook(self, job_type: str, recording_id: int, error: str):
         event_type = self._FAILURE_EVENT_MAP.get(job_type)

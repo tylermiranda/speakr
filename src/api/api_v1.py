@@ -954,6 +954,7 @@ def list_recordings():
             'error_message': r.error_message if r.status == 'FAILED' else None,
             'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in r.tags],
             'keep_audio_only': r.keep_audio_only,
+            'file_hash': r.file_hash,
         })
 
     return jsonify({
@@ -1021,15 +1022,22 @@ def get_recording(recording_id):
         'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in recording.tags],
         'duplicate_info': recording.get_duplicate_info(),
         'keep_audio_only': recording.keep_audio_only,
+        'file_hash': recording.file_hash,
+        'speaker_embeddings': recording.speaker_embeddings,
+        'processing_source': recording.processing_source,
+        'meeting_end_at': recording.meeting_end_at.isoformat() if recording.meeting_end_at else None,
     }
 
     # Include large text fields based on params
     if format_type != 'minimal':
         if 'transcription' in include_fields:
-            # Format transcription using user's default template
-            response['transcription'] = format_transcription_with_template(
-                recording.transcription, current_user
-            ) if recording.transcription else None
+            # Sync/peers need raw JSON segments; UI clients get the template.
+            if request.args.get('raw') in ('1', 'true', 'yes'):
+                response['transcription'] = recording.transcription
+            else:
+                response['transcription'] = format_transcription_with_template(
+                    recording.transcription, current_user
+                ) if recording.transcription else None
         if 'summary' in include_fields:
             response['summary'] = recording.summary
         if 'notes' in include_fields:
@@ -3010,6 +3018,104 @@ def upload_from_asr_voice_recorder():
         )
     except RequestEntityTooLarge:
         return jsonify({'error': 'File too large'}), 413
+
+
+@api_v1_bp.route('/recordings/sync/manifest', methods=['GET'])
+@login_required
+def sync_manifest():
+    """List COMPLETED recordings with file_hash for peer pull."""
+    from src.services.recording_sync import manifest_rows
+    from src.services.share_import import _parse_meeting_date
+
+    since_raw = request.args.get('since')
+    since = _parse_meeting_date(since_raw) if since_raw else None
+    return jsonify({
+        'recordings': manifest_rows(owner_id=current_user.id, since=since),
+    })
+
+
+@api_v1_bp.route('/recordings/sync', methods=['POST'])
+@login_required
+def sync_recording():
+    """Import a COMPLETED recording from a peer (audio + metadata, no ASR).
+
+    Multipart form-data:
+      - file (required): audio bytes
+      - transcription (required): raw transcript JSON string or text
+      - title, participants, notes, summary (optional)
+      - meeting_date, meeting_end_at (optional ISO)
+      - mime_type, original_filename, audio_duration_seconds (optional)
+      - file_hash (optional; computed from audio if omitted)
+      - speaker_embeddings (optional JSON object string)
+    """
+    from src.services.recording_sync import RecordingSyncError, import_completed_recording
+
+    uploaded = request.files.get('file')
+    if uploaded is None or not uploaded.filename:
+        return jsonify({'error': 'file is required'}), 400
+
+    form = request.form
+    transcription = form.get('transcription')
+    if not transcription:
+        return jsonify({'error': 'transcription is required'}), 400
+
+    import tempfile
+
+    suffix = os.path.splitext(secure_filename(uploaded.filename) or 'audio.bin')[1] or '.bin'
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    tmp_path = tmp.name
+    try:
+        uploaded.save(tmp_path)
+        tmp.close()
+        result = import_completed_recording(
+            owner=current_user,
+            local_audio_path=tmp_path,
+            title=form.get('title'),
+            participants=form.get('participants'),
+            notes=form.get('notes'),
+            transcription=transcription,
+            summary=form.get('summary'),
+            meeting_date=form.get('meeting_date'),
+            meeting_end_at=form.get('meeting_end_at'),
+            mime_type=form.get('mime_type') or uploaded.mimetype,
+            original_filename=form.get('original_filename') or uploaded.filename,
+            audio_duration_seconds=form.get('audio_duration_seconds'),
+            speaker_embeddings=form.get('speaker_embeddings'),
+            file_hash=form.get('file_hash') or None,
+            delete_source=True,
+        )
+        status = 200 if result.get('already_imported') else 201
+        return jsonify(result), status
+    except RecordingSyncError as exc:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except OSError:
+            pass
+        return jsonify({'error': exc.message}), exc.status_code
+    except Exception:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+@api_v1_bp.route('/recordings/<int:recording_id>/sync/push', methods=['POST'])
+@login_required
+def sync_push_recording(recording_id):
+    """Push one local COMPLETED recording to the configured peer."""
+    from src.services.recording_sync import RecordingSyncError, push_recording_to_peer
+
+    recording = db.session.get(Recording, recording_id)
+    if not recording or recording.user_id != current_user.id:
+        return jsonify({'error': 'Recording not found'}), 404
+    try:
+        result = push_recording_to_peer(recording_id)
+        return jsonify(result)
+    except RecordingSyncError as exc:
+        return jsonify({'error': exc.message}), exc.status_code
 
 
 @api_v1_bp.route('/recordings/upload', methods=['POST'])
