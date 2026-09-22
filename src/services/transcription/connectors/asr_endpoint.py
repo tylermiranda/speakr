@@ -188,10 +188,30 @@ class ASREndpointConnector(BaseTranscriptionConnector):
                 pool=None
             )
 
+            # Optional Cloudflare Access service-token auth for public tunnel origins.
+            # Prefer ASR-specific env vars; fall back to shared CF_ACCESS_* names.
+            cf_client_id = (
+                os.environ.get("ASR_CF_ACCESS_CLIENT_ID")
+                or os.environ.get("CF_ACCESS_CLIENT_ID")
+                or ""
+            ).strip()
+            cf_client_secret = (
+                os.environ.get("ASR_CF_ACCESS_CLIENT_SECRET")
+                or os.environ.get("CF_ACCESS_CLIENT_SECRET")
+                or ""
+            ).strip()
+            headers = {}
+            if cf_client_id and cf_client_secret:
+                headers["CF-Access-Client-Id"] = cf_client_id
+                headers["CF-Access-Client-Secret"] = cf_client_secret
+                logger.info("ASR request includes Cloudflare Access service-token headers")
+
             logger.info(f"Sending ASR request to {url} with params: {params} (timeout: {self.timeout}s)")
 
             with httpx.Client() as client:
-                response = client.post(url, params=params, files=files, timeout=timeout)
+                response = client.post(
+                    url, params=params, files=files, headers=headers or None, timeout=timeout
+                )
                 logger.info(f"ASR request completed with status: {response.status_code}")
                 response.raise_for_status()
 
