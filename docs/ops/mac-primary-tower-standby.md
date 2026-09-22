@@ -62,9 +62,13 @@ This sets Mac `created_at` / `completed_at` / `meeting_date` from Tower by `file
 | `GET/PUT /api/v1/sync/taxonomy` | Tags + folders by name |
 | `GET/PUT /api/v1/sync/settings-bundle` | Allowlisted settings + user templates (no secrets) |
 
-## Out of scope
+## Tower follow-up after Mac-primary cutover
 
-- Automatic Companion failover
-- SSO on Mac
-- Syncing in-progress ASR jobs
-- Shared SQLite / rsync
+When Tower LAN/Portainer is reachable:
+
+1. Pull/recreate Speakr from `ghcr.io/tylermiranda/speakr:main-amd64` (includes taxonomy, settings-bundle, metadata, date preservation — fork commits `11051a3`+).
+2. Set `PEER_SYNC_ROLE=standby` **or** unset `PEER_SYNC_BASE_URL` / `PEER_SYNC_TOKEN` so Tower never auto-pushes to Mac.
+3. Smoke: `GET /api/v1/sync/taxonomy` → 200; then Mac agent `--direction push` once.
+4. Optional one-time: set Mac admin password to match Tower (1Password) — instance-local only, not synced.
+
+Until then, Mac package push still works; taxonomy/settings/metadata soft-fail with 404 on Tower.
