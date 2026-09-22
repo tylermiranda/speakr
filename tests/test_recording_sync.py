@@ -188,3 +188,124 @@ def test_push_skips_peer_sourced():
             out = push_recording_to_peer(rid)
         assert out.get("skipped") is True
         assert out.get("reason") == "originated_from_peer"
+
+
+def test_sync_preserves_created_and_completed_at():
+    from datetime import datetime
+    from src.services.recording_sync import import_completed_recording
+
+    with _db():
+        uid = _setup_user("dates")
+        user = db.session.get(User, uid)
+        with tempfile.TemporaryDirectory() as tmp:
+            audio = _write_audio(tmp, b"date-preserve-audio")
+            created = datetime(2024, 6, 1, 12, 0, 0)
+            completed = datetime(2024, 6, 1, 12, 5, 0)
+            meeting = datetime(2024, 6, 1, 11, 0, 0)
+            result = import_completed_recording(
+                owner=user,
+                local_audio_path=audio,
+                title="Dated meeting",
+                transcription='[{"sentence":"x"}]',
+                meeting_date=meeting.isoformat(),
+                created_at=created.isoformat(),
+                completed_at=completed.isoformat(),
+                delete_source=False,
+            )
+            rec = db.session.get(Recording, result["recording"]["id"])
+            assert rec.created_at == created
+            assert rec.completed_at == completed
+            assert rec.meeting_date == meeting
+
+
+def test_push_skipped_when_standby_role():
+    from src.services.recording_sync import push_recording_to_peer
+
+    with _db():
+        uid = _setup_user("standby")
+        user = db.session.get(User, uid)
+        rec = Recording(
+            user_id=user.id,
+            title="Local",
+            transcription='[{"sentence":"x"}]',
+            status="COMPLETED",
+            file_hash="abc123",
+            processing_source="upload",
+            audio_path="local://x",
+        )
+        db.session.add(rec)
+        db.session.commit()
+        rid = rec.id
+        with patch.dict(
+            os.environ,
+            {
+                "PEER_SYNC_BASE_URL": "https://example.test",
+                "PEER_SYNC_TOKEN": "tok",
+                "PEER_SYNC_ROLE": "standby",
+            },
+        ):
+            out = push_recording_to_peer(rid)
+        assert out.get("skipped") is True
+        assert out.get("reason") == "standby_role"
+
+
+def test_taxonomy_roundtrip_by_name():
+    from src.services.instance_sync import export_taxonomy, import_taxonomy
+    from src.models.organization import Folder, Tag
+
+    with _db():
+        uid = _setup_user("tax")
+        user = db.session.get(User, uid)
+        db.session.add(Tag(user_id=uid, name="Work", color="#111111"))
+        db.session.add(Folder(user_id=uid, name="Inbox-ish", color="#222222"))
+        db.session.commit()
+        payload = export_taxonomy(owner_id=uid)
+        assert any(t["name"] == "Work" for t in payload["tags"])
+        assert any(f["name"] == "Inbox-ish" for f in payload["folders"])
+
+        uid2 = _setup_user("tax2")
+        user2 = db.session.get(User, uid2)
+        result = import_taxonomy(owner=user2, payload=payload)
+        assert result["success"] is True
+        assert Tag.query.filter_by(user_id=uid2, name="Work").first()
+        assert Folder.query.filter_by(user_id=uid2, name="Inbox-ish").first()
+
+
+def test_metadata_lww_by_hash():
+    from datetime import datetime
+    from src.services.instance_sync import apply_metadata_by_hash
+    from src.services.recording_sync import import_completed_recording
+
+    with _db():
+        uid = _setup_user("meta")
+        user = db.session.get(User, uid)
+        with tempfile.TemporaryDirectory() as tmp:
+            audio = _write_audio(tmp, b"meta-audio")
+            result = import_completed_recording(
+                owner=user,
+                local_audio_path=audio,
+                title="Old title",
+                transcription='[{"sentence":"x"}]',
+                created_at="2024-01-01T00:00:00",
+                completed_at="2024-01-01T00:01:00",
+                delete_source=False,
+            )
+            digest = result["recording"]["file_hash"]
+        out = apply_metadata_by_hash(
+            owner=user,
+            payload={
+                "file_hash": digest,
+                "title": "New title",
+                "created_at": "2023-05-05T10:00:00",
+                "completed_at": "2023-05-05T10:05:00",
+                "meeting_date": "2023-05-05T09:00:00",
+                "sync_updated_at": datetime.utcnow().isoformat(),
+                "tag_names": ["Alpha"],
+                "force": True,
+            },
+        )
+        assert out["changed"] is True
+        rec = Recording.query.filter_by(user_id=uid, file_hash=digest).first()
+        assert rec.title == "New title"
+        assert rec.created_at.year == 2023
+        assert any(t.name == "Alpha" for t in rec.tags)

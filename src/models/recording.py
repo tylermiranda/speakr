@@ -40,6 +40,8 @@ class Recording(db.Model):
     mime_type = db.Column(db.String(100), nullable=True)
     audio_duration_seconds = db.Column(db.Float, nullable=True)  # Cached audio duration to avoid materializing remote storage during serialization
     completed_at = db.Column(db.DateTime, nullable=True)
+    # Peer-sync last-write clock for metadata merge (naive UTC).
+    sync_updated_at = db.Column(db.DateTime, nullable=True)
     processing_time_seconds = db.Column(db.Integer, nullable=True)
     transcription_duration_seconds = db.Column(db.Integer, nullable=True)  # Time taken for transcription
     # Cached audio duration in seconds, populated at transcription

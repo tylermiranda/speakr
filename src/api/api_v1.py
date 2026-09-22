@@ -1291,6 +1291,10 @@ def update_recording(recording_id):
             recording.folder_id = new_folder_id
         changed_fields.append('folder_id')
 
+    if changed_fields and hasattr(recording, 'sync_updated_at'):
+        from datetime import datetime as _dt
+        recording.sync_updated_at = _dt.utcnow()
+
     db.session.commit()
 
     # Webhook fan-out (#275) for `recording.updated`. Best-effort: a
@@ -1311,6 +1315,16 @@ def update_recording(recording_id):
             )
         except Exception as e:
             current_app.logger.warning(f"Webhook emit (recording.updated) failed for recording {recording_id}: {e}")
+
+        # Mac-primary peer metadata sync (standby skips inside helper).
+        if recording.user_id == current_user.id and recording.file_hash:
+            try:
+                from src.services.instance_sync import queue_metadata_push_if_configured
+                queue_metadata_push_if_configured(recording.id)
+            except Exception as e:
+                current_app.logger.warning(
+                    f"Peer metadata push queue failed for recording {recording_id}: {e}"
+                )
 
     return jsonify({
         'success': True,
@@ -3043,10 +3057,12 @@ def sync_recording():
       - file (required): audio bytes
       - transcription (required): raw transcript JSON string or text
       - title, participants, notes, summary (optional)
-      - meeting_date, meeting_end_at (optional ISO)
+      - meeting_date, meeting_end_at, created_at, completed_at (optional ISO)
       - mime_type, original_filename, audio_duration_seconds (optional)
       - file_hash (optional; computed from audio if omitted)
       - speaker_embeddings (optional JSON object string)
+      - tag_names (optional JSON array string), folder_path (optional)
+      - is_inbox, is_highlighted, sync_updated_at (optional)
     """
     from src.services.recording_sync import RecordingSyncError, import_completed_recording
 
@@ -3060,6 +3076,23 @@ def sync_recording():
         return jsonify({'error': 'transcription is required'}), 400
 
     import tempfile
+    import json as _json
+
+    tag_names = None
+    raw_tags = form.get('tag_names')
+    if raw_tags:
+        try:
+            parsed = _json.loads(raw_tags)
+            if isinstance(parsed, list):
+                tag_names = [str(x) for x in parsed]
+        except (TypeError, ValueError):
+            tag_names = [t.strip() for t in raw_tags.split(',') if t.strip()]
+
+    def _bool_form(key):
+        raw = form.get(key)
+        if raw is None or raw == '':
+            return None
+        return str(raw).lower() in ('1', 'true', 'yes', 'on')
 
     suffix = os.path.splitext(secure_filename(uploaded.filename) or 'audio.bin')[1] or '.bin'
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
@@ -3077,11 +3110,18 @@ def sync_recording():
             summary=form.get('summary'),
             meeting_date=form.get('meeting_date'),
             meeting_end_at=form.get('meeting_end_at'),
+            created_at=form.get('created_at'),
+            completed_at=form.get('completed_at'),
             mime_type=form.get('mime_type') or uploaded.mimetype,
             original_filename=form.get('original_filename') or uploaded.filename,
             audio_duration_seconds=form.get('audio_duration_seconds'),
             speaker_embeddings=form.get('speaker_embeddings'),
             file_hash=form.get('file_hash') or None,
+            tag_names=tag_names,
+            folder_path=form.get('folder_path'),
+            is_inbox=_bool_form('is_inbox'),
+            is_highlighted=_bool_form('is_highlighted'),
+            sync_updated_at=form.get('sync_updated_at'),
             delete_source=True,
         )
         status = 200 if result.get('already_imported') else 201
@@ -3100,6 +3140,54 @@ def sync_recording():
         except OSError:
             pass
         raise
+
+
+@api_v1_bp.route('/recordings/sync/metadata', methods=['POST'])
+@login_required
+def sync_recording_metadata():
+    """Upsert metadata for an existing recording keyed by file_hash."""
+    from src.services.instance_sync import InstanceSyncError, apply_metadata_by_hash
+
+    data = request.get_json(silent=True) or {}
+    try:
+        result = apply_metadata_by_hash(owner=current_user, payload=data)
+        return jsonify(result)
+    except InstanceSyncError as exc:
+        return jsonify({'error': exc.message}), exc.status_code
+
+
+@api_v1_bp.route('/sync/taxonomy', methods=['GET', 'PUT'])
+@login_required
+def sync_taxonomy():
+    """Export or import personal tags/folders catalog (matched by name)."""
+    from src.services.instance_sync import InstanceSyncError, export_taxonomy, import_taxonomy
+
+    if request.method == 'GET':
+        return jsonify(export_taxonomy(owner_id=current_user.id))
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(import_taxonomy(owner=current_user, payload=payload))
+    except InstanceSyncError as exc:
+        return jsonify({'error': exc.message}), exc.status_code
+
+
+@api_v1_bp.route('/sync/settings-bundle', methods=['GET', 'PUT'])
+@login_required
+def sync_settings_bundle():
+    """Allowlisted system settings + user templates/prefs (no secrets)."""
+    from src.services.instance_sync import (
+        InstanceSyncError,
+        export_settings_bundle,
+        import_settings_bundle,
+    )
+
+    if request.method == 'GET':
+        return jsonify(export_settings_bundle(owner=current_user))
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(import_settings_bundle(owner=current_user, payload=payload))
+    except InstanceSyncError as exc:
+        return jsonify({'error': exc.message}), exc.status_code
 
 
 @api_v1_bp.route('/recordings/<int:recording_id>/sync/push', methods=['POST'])

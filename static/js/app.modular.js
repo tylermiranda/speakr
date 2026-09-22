@@ -2890,8 +2890,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
                     };
 
-                    const uploadedLabel = recording.processing_source === 'share_import'
-                        ? `Imported: ${formatDisplayDate(recording.created_at)}`
+                    const isImportedSource = recording.processing_source === 'share_import'
+                        || recording.processing_source === 'peer_sync';
+                    const importDate = isImportedSource && recording.meeting_date
+                        ? recording.meeting_date
+                        : recording.created_at;
+                    const uploadedLabel = isImportedSource
+                        ? `Imported: ${formatDisplayDate(importDate)}`
                         : `Uploaded: ${formatDisplayDate(recording.created_at)}`;
 
                     // Build tooltip with processing breakdown

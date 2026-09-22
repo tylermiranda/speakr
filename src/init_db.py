@@ -698,6 +698,9 @@ def _run_migrations(app, engine):
         except Exception as e:
             app.logger.warning(f"Could not create index on recording (user_id, file_hash): {e}")
 
+        if add_column_if_not_exists(engine, 'recording', 'sync_updated_at', 'DATETIME'):
+            app.logger.info("Added sync_updated_at column to recording table")
+
         # Composite index that backs the webhook dispatcher's main query:
         # `status IN ('pending','failed') AND next_retry_at <= now`.
         # Without this the dispatcher scans the full webhook_delivery
