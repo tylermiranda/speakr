@@ -21,6 +21,7 @@ from src.models import (
     NamingTemplate,
     Recording,
     RecordingTag,
+    Speaker,
     SystemSetting,
     Tag,
 )
@@ -34,6 +35,12 @@ from src.services.recording_sync import (
     peer_sync_role,
 )
 from src.services.share_import import _parse_meeting_date
+from src.services.speaker_embedding_matcher import (
+    deserialize_embedding,
+    serialize_embedding,
+)
+import base64
+import numpy as np
 
 # SystemSetting keys safe to replicate (no secrets / API keys / OIDC).
 SETTINGS_ALLOWLIST = frozenset(
@@ -371,6 +378,87 @@ def import_settings_bundle(*, owner, payload: dict) -> dict:
         "naming_templates_upserted": naming,
         "export_templates_upserted": export,
         "initial_prompt_templates_upserted": prompts,
+    }
+
+
+def export_speakers(*, owner_id: int) -> dict:
+    """Export speaker catalog including voice embeddings (base64 float32)."""
+    rows = (
+        Speaker.query.filter_by(user_id=owner_id)
+        .order_by(Speaker.use_count.desc(), Speaker.name)
+        .all()
+    )
+    out = []
+    for s in rows:
+        emb_b64 = None
+        if s.average_embedding:
+            try:
+                arr = deserialize_embedding(s.average_embedding)
+                emb_b64 = base64.b64encode(
+                    np.asarray(arr, dtype=np.float32).tobytes()
+                ).decode("ascii")
+            except Exception:
+                emb_b64 = None
+        out.append(
+            {
+                "name": s.name,
+                "use_count": s.use_count or 0,
+                "confidence_score": s.confidence_score,
+                "embedding_count": s.embedding_count or 0,
+                "average_embedding_b64": emb_b64,
+                "last_used": s.last_used.isoformat() if s.last_used else None,
+            }
+        )
+    return {"speakers": out}
+
+
+def import_speakers(*, owner, payload: dict) -> dict:
+    """Upsert speakers by name; prefer incoming voice profile when present."""
+    items = payload.get("speakers") or []
+    created = updated = profiles = 0
+    for item in items:
+        name = (item.get("name") or "").strip()
+        if not name:
+            continue
+        row = Speaker.query.filter_by(user_id=owner.id, name=name[:100]).first()
+        if not row:
+            row = Speaker(
+                user_id=owner.id,
+                name=name[:100],
+                use_count=item.get("use_count") or 0,
+                created_at=datetime.utcnow(),
+                last_used=datetime.utcnow(),
+            )
+            db.session.add(row)
+            created += 1
+        else:
+            updated += 1
+            if (item.get("use_count") or 0) > (row.use_count or 0):
+                row.use_count = item.get("use_count") or row.use_count
+        if item.get("confidence_score") is not None:
+            row.confidence_score = item.get("confidence_score")
+        if item.get("embedding_count") is not None:
+            row.embedding_count = item.get("embedding_count")
+        last_used = _parse_meeting_date(item.get("last_used"))
+        if last_used:
+            row.last_used = last_used
+        emb_b64 = item.get("average_embedding_b64")
+        if emb_b64:
+            try:
+                raw = base64.b64decode(emb_b64)
+                arr = np.frombuffer(raw, dtype=np.float32)
+                if arr.size > 0:
+                    row.average_embedding = serialize_embedding(arr)
+                    profiles += 1
+            except Exception:
+                pass
+    db.session.commit()
+    return {
+        "success": True,
+        "created": created,
+        "updated": updated,
+        "profiles_applied": profiles,
+        "total": len(items),
     }
 
 

@@ -3190,6 +3190,21 @@ def sync_settings_bundle():
         return jsonify({'error': exc.message}), exc.status_code
 
 
+@api_v1_bp.route('/sync/speakers', methods=['GET', 'PUT'])
+@login_required
+def sync_speakers():
+    """Export/import speaker catalog including voice embeddings (by name)."""
+    from src.services.instance_sync import InstanceSyncError, export_speakers, import_speakers
+
+    if request.method == 'GET':
+        return jsonify(export_speakers(owner_id=current_user.id))
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(import_speakers(owner=current_user, payload=payload))
+    except InstanceSyncError as exc:
+        return jsonify({'error': exc.message}), exc.status_code
+
+
 @api_v1_bp.route('/recordings/<int:recording_id>/sync/push', methods=['POST'])
 @login_required
 def sync_push_recording(recording_id):
