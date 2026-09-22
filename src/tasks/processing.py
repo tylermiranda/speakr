@@ -2293,6 +2293,7 @@ def transcribe_with_connector(app_context, recording_id, filepath, original_file
             # embedding-capable connectors that happened to return none.
             label_user = db.session.get(User, recording.user_id)
             if label_user and label_user.auto_speaker_labelling:
+                embedding_map = {}
                 if recording.speaker_embeddings:
                     try:
                         from src.services.speaker_embedding_matcher import (
@@ -2301,28 +2302,34 @@ def transcribe_with_connector(app_context, recording_id, filepath, original_file
                             update_speaker_profiles_from_recording
                         )
                         current_app.logger.info(f"Applying embedding auto speaker labelling for recording {recording.id}")
-                        speaker_map = apply_auto_speaker_labels(recording, label_user)
+                        embedding_map = apply_auto_speaker_labels(recording, label_user) or {}
 
-                        if speaker_map:
-                            current_app.logger.info(f"Auto-matched speakers: {speaker_map}")
-                            if apply_speaker_names_to_transcription(recording, speaker_map):
+                        if embedding_map:
+                            current_app.logger.info(f"Auto-matched speakers: {embedding_map}")
+                            if apply_speaker_names_to_transcription(recording, embedding_map):
                                 current_app.logger.info(f"Applied speaker names to transcription")
-                                updated_count = update_speaker_profiles_from_recording(recording, speaker_map, label_user)
+                                updated_count = update_speaker_profiles_from_recording(recording, embedding_map, label_user)
                                 if updated_count > 0:
                                     current_app.logger.info(f"Updated {updated_count} speaker profiles with new embeddings")
                             else:
                                 current_app.logger.warning(f"Failed to apply speaker names to transcription for recording {recording.id}")
                         else:
-                            current_app.logger.info(f"No speakers matched for embedding auto-labelling")
+                            current_app.logger.info(f"No speakers matched for embedding auto-labelling; trying contextual")
                     except Exception as auto_label_err:
                         # Don't fail transcription if auto-labelling fails
                         current_app.logger.warning(f"Failed to apply embedding speaker labelling: {auto_label_err}")
-                else:
+
+                # Fall back to contextual LLM labelling when there are no voice
+                # embeddings, or when embeddings exist but no saved voice
+                # profiles matched (e.g. names synced without embeddings).
+                if not embedding_map:
                     try:
                         from src.services.speaker_identification import apply_contextual_auto_labels
                         current_app.logger.info(f"Applying contextual auto speaker labelling for recording {recording.id}")
                         contextual_map = apply_contextual_auto_labels(recording, label_user)
-                        if not contextual_map:
+                        if contextual_map:
+                            current_app.logger.info(f"Contextual auto-matched speakers: {contextual_map}")
+                        else:
                             current_app.logger.info(f"No saved speaker matched recording {recording.id} contextually")
                     except Exception as auto_label_err:
                         # apply_contextual_auto_labels is already failure-isolated;
