@@ -222,6 +222,12 @@ class SpeakrClient:
     def put_settings_bundle(self, payload: dict) -> dict:
         return self.put_json("/api/v1/sync/settings-bundle", payload)
 
+    def get_speakers(self) -> dict:
+        return self.get_json("/api/v1/sync/speakers")
+
+    def put_speakers(self, payload: dict) -> dict:
+        return self.put_json("/api/v1/sync/speakers", payload)
+
     def post_metadata(self, payload: dict) -> dict:
         return self.post_json("/api/v1/recordings/sync/metadata", payload)
 
@@ -379,6 +385,25 @@ def sync_settings(src: SpeakrClient, dst: SpeakrClient, dry_run: bool) -> None:
         if code == 404:
             LOG.warning(
                 "Peer %s missing /api/v1/sync/settings-bundle — deploy fork image, then re-run",
+                dst.name,
+            )
+            return
+        raise
+
+
+def sync_speakers(src: SpeakrClient, dst: SpeakrClient, dry_run: bool) -> None:
+    LOG.info("Speakers %s → %s", src.name, dst.name)
+    if dry_run:
+        return
+    try:
+        payload = src.get_speakers()
+        result = dst.put_speakers(payload)
+        LOG.info("Speakers applied: %s", result)
+    except httpx.HTTPStatusError as exc:
+        code = exc.response.status_code if exc.response is not None else "?"
+        if code == 404:
+            LOG.warning(
+                "Peer %s missing /api/v1/sync/speakers — deploy fork image, then re-run",
                 dst.name,
             )
             return
@@ -561,6 +586,7 @@ def run(
             if include_catalog:
                 sync_taxonomy(peer, local, dry_run=dry_run)
                 sync_settings(peer, local, dry_run=dry_run)
+                sync_speakers(peer, local, dry_run=dry_run)
             meta = pull_metadata_for_shared(
                 local, peer, dry_run=dry_run, limit=limit
             )
@@ -569,6 +595,7 @@ def run(
             if include_catalog:
                 sync_taxonomy(local, peer, dry_run=dry_run)
                 sync_settings(local, peer, dry_run=dry_run)
+                sync_speakers(local, peer, dry_run=dry_run)
             meta = push_metadata_for_shared(
                 local, peer, dry_run=dry_run, limit=limit
             )
@@ -623,7 +650,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument(
         "--no-catalog",
         action="store_true",
-        help="Skip taxonomy/settings bundle sync",
+        help="Skip taxonomy/settings/speakers catalog sync",
     )
     parser.add_argument(
         "--limit",

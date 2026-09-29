@@ -49,6 +49,7 @@ SETTINGS_ALLOWLIST = frozenset(
         "default_summary_prompt",
         "admin_transcription_models",
         "enable_auto_processing",
+        "enable_folders",
         "video_retention",
         "audio_retention_days",
         "ui_theme",

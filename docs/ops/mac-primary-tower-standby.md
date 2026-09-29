@@ -61,6 +61,7 @@ This sets Mac `created_at` / `completed_at` / `meeting_date` from Tower by `file
 | `POST /api/v1/recordings/sync/metadata` | Metadata-only by `file_hash` |
 | `GET/PUT /api/v1/sync/taxonomy` | Tags + folders by name |
 | `GET/PUT /api/v1/sync/settings-bundle` | Allowlisted settings + user templates (no secrets) |
+| `GET/PUT /api/v1/sync/speakers` | Speaker catalog + voice embeddings (by name) |
 
 ## Tower follow-up after Mac-primary cutover
 
