@@ -48,10 +48,27 @@ def identify_speakers_from_transcript(transcription_data, user_id, candidate_nam
     if not unique_speakers:
         return {}
 
-    # Normalize all labels to SPEAKER_XX format for the LLM
+    # Map labels the LLM will see. When ASR already emitted SPEAKER_XX ids,
+    # keep them as-is — renumbering by first-appearance order made SPEAKER_01
+    # in the prompt mean "second person who spoke", not pyannote's SPEAKER_01,
+    # so LLM guesses keyed by index (host=00, etc.) were applied to the wrong
+    # clusters. Only invent SPEAKER_XX temps for non-standard labels (S1, names).
+    speaker_label_re = re.compile(r'^SPEAKER_\d{2}$')
     speaker_to_label = {}
-    for idx, speaker in enumerate(unique_speakers):
-        speaker_to_label[speaker] = f'SPEAKER_{str(idx).zfill(2)}'
+    next_temp_idx = 0
+    used_temps = set()
+    for speaker in unique_speakers:
+        label = str(speaker).strip()
+        if speaker_label_re.match(label) and label not in used_temps:
+            speaker_to_label[speaker] = label
+            used_temps.add(label)
+            continue
+        while f'SPEAKER_{str(next_temp_idx).zfill(2)}' in used_temps:
+            next_temp_idx += 1
+        temp = f'SPEAKER_{str(next_temp_idx).zfill(2)}'
+        speaker_to_label[speaker] = temp
+        used_temps.add(temp)
+        next_temp_idx += 1
 
     # Create temporary transcript with normalized labels
     formatted_lines = []
@@ -270,6 +287,12 @@ def _sanitize_identified_map(identified_map, speaker_labels, candidate_names=Non
             continue
 
         name = identified_name.strip()
+
+        # Never promote placeholder labels into "real" names (also blocks a
+        # saved profile literally named UNKNOWN_SPEAKER from being applied).
+        if name.upper() in {"UNKNOWN", "UNKNOWN_SPEAKER", "N/A", "NOT AVAILABLE", "UNCLEAR", "UNIDENTIFIED"}:
+            sanitized[speaker_label] = ""
+            continue
 
         # Contextual mode: accept only an exact saved-profile name (preserving
         # its original casing/punctuation), otherwise leave the speaker blank.

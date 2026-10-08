@@ -97,6 +97,54 @@ def test_manual_path_is_unconstrained(monkeypatch):
     assert result == {"S01": "Maha", "S02": "Jill"}
 
 
+def test_existing_speaker_xx_labels_are_not_renumbered_by_appearance(monkeypatch):
+    """Pyannote SPEAKER_01 must stay SPEAKER_01 in the LLM prompt/map-back.
+
+    First-appearance renumbering used to make the prompt's SPEAKER_01 mean
+    'second person who spoke' (often a different cluster id), so index-biased
+    LLM guesses were applied to the wrong diarization labels.
+    """
+    monkeypatch.delenv("AUTO_IDENTIFY_RESPONSE_SCHEMA", raising=False)
+    transcript = [
+        {"speaker": "SPEAKER_00", "sentence": "Hello Jeff."},
+        {"speaker": "SPEAKER_09", "sentence": "Hi Tessa."},
+        {"speaker": "SPEAKER_01", "sentence": "Mark here with an update."},
+    ]
+    app = Flask(__name__)
+    with app.app_context(), patch(
+        "src.services.llm.call_llm_completion",
+        return_value=_completion(
+            '{"SPEAKER_00":"Jeffrey Hasenkamp","SPEAKER_09":"Tess Myer","SPEAKER_01":"Mark Maxfield"}'
+        ),
+    ) as call_llm, patch("src.models.SystemSetting.get_setting", side_effect=_settings()):
+        result = identify_speakers_from_transcript(
+            transcript,
+            user_id=1,
+            candidate_names=["Jeffrey Hasenkamp", "Tess Myer", "Mark Maxfield"],
+        )
+    assert result == {
+        "SPEAKER_00": "Jeffrey Hasenkamp",
+        "SPEAKER_09": "Tess Myer",
+        "SPEAKER_01": "Mark Maxfield",
+    }
+    prompt = call_llm.call_args.kwargs["messages"][1]["content"]
+    assert "[SPEAKER_09]: Hi Tessa." in prompt
+    assert "[SPEAKER_01]: Mark here with an update." in prompt
+    # Must NOT renumber SPEAKER_09 → SPEAKER_01 in the prompt.
+    assert "[SPEAKER_01]: Hi Tessa." not in prompt
+
+
+def test_sanitizer_rejects_unknown_speaker_placeholder():
+    app = Flask(__name__)
+    with app.app_context():
+        out = _sanitize_identified_map(
+            {"SPEAKER_00": "UNKNOWN_SPEAKER", "SPEAKER_01": "Maha"},
+            ["SPEAKER_00", "SPEAKER_01"],
+            candidate_names=["Maha", "UNKNOWN_SPEAKER"],
+        )
+    assert out == {"SPEAKER_00": "", "SPEAKER_01": "Maha"}
+
+
 def test_admin_prompt_override_replaces_default_guidance(monkeypatch):
     monkeypatch.delenv("AUTO_IDENTIFY_RESPONSE_SCHEMA", raising=False)
     app = Flask(__name__)

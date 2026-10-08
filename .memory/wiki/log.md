@@ -3,6 +3,7 @@
 Append-only changelog of memory operations and notable session captures.
 
 ## Entries
+- (2026-10-08) Speaker auto-label: keep ASR `SPEAKER_XX` ids (no first-appearance renumber); skip contextual LLM when embeddings present but unmatched; reject `UNKNOWN_SPEAKER` as a name; one profile name per diarization cluster. Recording 134 had wrong names from contextual remap after empty WhisperMLX profiles.
 - (2026-10-08) Reverted Mac Speakr ASR from Apple/FluidAudio to WhisperMLX `:9001` (diarization quality). Cleared FluidAudio voice blobs again; Apple LaunchAgents parked.
 - (2026-10-08) Apple ASR path now returns FluidAudio/WeSpeaker 256-d `speaker_embeddings` (mac-transcriber helper+server + speakr-apple-asr-shim). Mac Speakr `ASR_RETURN_SPEAKER_EMBEDDINGS=true`; WhisperX profile blobs cleared. Voice auto-label verified on recording 133 after seeding profiles.
 

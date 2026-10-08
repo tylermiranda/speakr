@@ -298,7 +298,10 @@ def apply_auto_speaker_labels(recording, user):
     threshold_setting = user.auto_speaker_labelling_threshold or 'medium'
     confidence_threshold = AUTO_LABEL_THRESHOLDS.get(threshold_setting, AUTO_LABEL_THRESHOLDS['medium'])
 
-    speaker_map = {}
+    # Collect (label, name, similarity) then enforce one profile name per
+    # diarization cluster — otherwise two SPEAKER_* can collapse to the same
+    # person and two real voices look like one speaker in the transcript.
+    candidates = []
     embeddings = recording.speaker_embeddings
 
     for speaker_label, embedding_data in embeddings.items():
@@ -333,8 +336,18 @@ def apply_auto_speaker_labels(recording, user):
                 # Ambiguous - top 2 matches too close
                 continue
 
-        # We have a clear winner - add to speaker map
-        speaker_map[speaker_label] = best_match['name']
+        candidates.append((speaker_label, best_match['name'], best_similarity))
+
+    # Highest similarity wins if multiple clusters claim the same profile.
+    candidates.sort(key=lambda row: row[2], reverse=True)
+    speaker_map = {}
+    claimed_names = set()
+    for speaker_label, name, _similarity in candidates:
+        name_key = name.casefold()
+        if name_key in claimed_names:
+            continue
+        speaker_map[speaker_label] = name
+        claimed_names.add(name_key)
 
     return speaker_map
 

@@ -2314,15 +2314,25 @@ def transcribe_with_connector(app_context, recording_id, filepath, original_file
                             else:
                                 current_app.logger.warning(f"Failed to apply speaker names to transcription for recording {recording.id}")
                         else:
-                            current_app.logger.info(f"No speakers matched for embedding auto-labelling; trying contextual")
+                            # Embeddings are present but no profile matched
+                            # (cleared profiles, new voices, or below threshold).
+                            # Do NOT fall through to contextual LLM — guessing
+                            # from dialogue with mismatched SPEAKER_* indices
+                            # was applying wrong names (and can poison profiles
+                            # if the user then "confirms" them).
+                            current_app.logger.info(
+                                f"No speakers matched for embedding auto-labelling "
+                                f"on recording {recording.id}; leaving SPEAKER_* "
+                                f"labels (skipping contextual fallback because "
+                                f"speaker_embeddings are present)"
+                            )
                     except Exception as auto_label_err:
                         # Don't fail transcription if auto-labelling fails
                         current_app.logger.warning(f"Failed to apply embedding speaker labelling: {auto_label_err}")
 
-                # Fall back to contextual LLM labelling when there are no voice
-                # embeddings, or when embeddings exist but no saved voice
-                # profiles matched (e.g. names synced without embeddings).
-                if not embedding_map:
+                # Contextual LLM labelling only when the ASR response had no
+                # voice embeddings at all (embedding-less connectors).
+                if not embedding_map and not recording.speaker_embeddings:
                     try:
                         from src.services.speaker_identification import apply_contextual_auto_labels
                         current_app.logger.info(f"Applying contextual auto speaker labelling for recording {recording.id}")
