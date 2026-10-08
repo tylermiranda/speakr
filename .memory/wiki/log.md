@@ -3,6 +3,7 @@
 Append-only changelog of memory operations and notable session captures.
 
 ## Entries
+- (2026-10-08) Reverted Mac Speakr ASR from Apple/FluidAudio to WhisperMLX `:9001` (diarization quality). Cleared FluidAudio voice blobs again; Apple LaunchAgents parked.
 - (2026-10-08) Apple ASR path now returns FluidAudio/WeSpeaker 256-d `speaker_embeddings` (mac-transcriber helper+server + speakr-apple-asr-shim). Mac Speakr `ASR_RETURN_SPEAKER_EMBEDDINGS=true`; WhisperX profile blobs cleared. Voice auto-label verified on recording 133 after seeding profiles.
 
 - (2026-10-05) Workflow tag **Filed** (Tower + Mac Speakr tag id 12): personal label only — color `#15803d`, no custom prompt / transcription hint / ASR defaults. Marks that a meeting summary was filed into a secondary system. Doc: `/Users/tyler/Documents/Speakr/filed-workflow-tag.md` (not a `*-tag.md` pack; not synced by `sync-speakr-tags.py`).
