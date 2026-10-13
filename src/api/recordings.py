@@ -1016,6 +1016,20 @@ def update_speakers(recording_id):
                     if name and not re.match(r'^SPEAKER_\d+$', name, re.IGNORECASE):
                         speaker_label_to_name[speaker_label] = name
 
+                # Voice profiles only update when speaker_map keys match embedding
+                # keys (SPEAKER_XX). If contextual auto-label already renamed the
+                # transcript, Identify Speakers keys are human names and this
+                # intersection is empty — warn so we do not silently skip seeding.
+                emb_keys = set(embeddings_data.keys()) if isinstance(embeddings_data, dict) else set()
+                map_keys = set(speaker_label_to_name.keys())
+                if emb_keys and map_keys.isdisjoint(emb_keys):
+                    current_app.logger.warning(
+                        "Voice profile not updated for recording %s: speaker_map "
+                        "keys %s do not match embedding keys %s. Re-identify while "
+                        "labels are still SPEAKER_XX (or reprocess with auto-label off).",
+                        recording.id, sorted(map_keys)[:12], sorted(emb_keys)[:12],
+                    )
+
                 # Update embeddings for each identified speaker
                 for speaker_label, embedding in embeddings_data.items():
                     if speaker_label in speaker_label_to_name and embedding and len(embedding) == 256:
@@ -1026,21 +1040,27 @@ def update_speakers(recording_id):
                             user_id=current_user.id,
                             name=speaker_name
                         ).first()
+                        if not speaker:
+                            speaker = Speaker(
+                                user_id=current_user.id,
+                                name=speaker_name[:100],
+                                use_count=0,
+                            )
+                            db.session.add(speaker)
+                            db.session.flush()
 
-                        if speaker:
-                            # Update the speaker's voice embedding
-                            similarity = update_speaker_embedding(speaker, embedding, recording.id)
-                            embeddings_updated += 1
+                        similarity = update_speaker_embedding(speaker, embedding, recording.id)
+                        embeddings_updated += 1
 
-                            if similarity is not None:
-                                current_app.logger.info(
-                                    f"Updated voice profile for '{speaker_name}' "
-                                    f"(similarity: {similarity*100:.1f}%)"
-                                )
-                            else:
-                                current_app.logger.info(
-                                    f"Created initial voice profile for '{speaker_name}'"
-                                )
+                        if similarity is not None:
+                            current_app.logger.info(
+                                f"Updated voice profile for '{speaker_name}' "
+                                f"(similarity: {similarity*100:.1f}%)"
+                            )
+                        else:
+                            current_app.logger.info(
+                                f"Created initial voice profile for '{speaker_name}'"
+                            )
 
                 # Create snippets for identified speakers
                 if speaker_label_to_name:
