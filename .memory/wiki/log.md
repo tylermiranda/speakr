@@ -16,3 +16,5 @@ Append-only changelog of memory operations and notable session captures.
 - (install) Project memory scaffold created. See [agent-memory-setup](systems/agent-memory-setup.md).
 - (2026-10-08) Mac Docker upload failure `Server does not support sliced uploads`: lite image frontend (0.10.6) slices files >16MB, but compose bind-mount of fork `src/` lacked sliced-upload API (`upload_filename` / `finalize-upload`). Synced recording_session model + API + stitch public helpers + init_db columns from image; container healthy.
 - 2026-10-13 Recording 148 (1h Zoom) failed repeatedly: WhisperMLX memory watchdog hard-restarted mid-diarization (~28G vs 24G). Fix: unload watchdog temporarily + ASR_RETURN_SPEAKER_EMBEDDINGS=false for that job; raised watchdog soft/hard to 28/34G. Completed as Infrastructure All Hands Meeting.
+
+- (2026-10-14) Recording 153 (Charles/Adam/Tyler, ~71MB Zoom m4a) failed: WhisperMLX memory watchdog hard-restarted mid-job (footprint 36G > hard 34G) ~5m into diarize+embeddings; Speakr saw RemoteProtocolError then Connection refused on instant retries; job 105 failed after 3 retries. ASR healthy again (pid 23751). Same class as recording 148.
