@@ -1409,32 +1409,48 @@ def compress_lossless_audio(filepath, codec='mp3', bitrate='128k', codec_info=No
         raise
 
 
-def merge_diarized_chunks(chunk_results):
+def _cosine_similarity(a, b) -> float:
+    """Cosine similarity for two embedding vectors; 0.0 on bad input."""
+    try:
+        import math
+        if not a or not b or len(a) != len(b):
+            return 0.0
+        dot = 0.0
+        na = 0.0
+        nb = 0.0
+        for x, y in zip(a, b):
+            fx = float(x)
+            fy = float(y)
+            dot += fx * fy
+            na += fx * fx
+            nb += fy * fy
+        if na <= 0.0 or nb <= 0.0:
+            return 0.0
+        return dot / (math.sqrt(na) * math.sqrt(nb))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def merge_diarized_chunks(chunk_results, embedding_match_threshold: float = 0.75):
     """
-    Merge diarized transcription chunks while remapping speaker labels to be unique.
+    Merge diarized transcription chunks while remapping speaker labels.
 
     Since ASR services can't maintain speaker identity across chunks, each chunk's
-    speakers are remapped to unique IDs:
+    speakers are remapped. When per-chunk ``speaker_embeddings`` are present,
+    subsequent chunks reuse an earlier label if cosine similarity is above
+    ``embedding_match_threshold``; otherwise they get a new unique ID:
     - Chunk 1: SPEAKER_00, SPEAKER_01 → SPEAKER_00, SPEAKER_01
-    - Chunk 2: SPEAKER_00, SPEAKER_01 → SPEAKER_02, SPEAKER_03
-    - etc.
-
-    This function:
-    1. Remaps speaker labels to be unique across all chunks
-    2. Updates both segments and transcription text with new labels
-    3. Adjusts timestamps based on chunk start_time
-
-    Args:
-        chunk_results: List of chunk results with 'transcription', 'segments', 'start_time'
+    - Chunk 2: SPEAKER_00 (~match SPEAKER_00) → SPEAKER_00
+    - Chunk 2: SPEAKER_01 (no match) → SPEAKER_02
 
     Returns:
-        Tuple of (merged_text, merged_segments, all_speakers)
+        Tuple of (merged_text, merged_segments, all_speakers, merged_embeddings)
     """
     from src.services.transcription import TranscriptionSegment
     import re
 
     if not chunk_results:
-        return "", [], []
+        return "", [], [], None
 
     # Sort chunks by start time to ensure correct order
     sorted_chunks = sorted(chunk_results, key=lambda x: x.get('start_time', 0))
@@ -1443,9 +1459,12 @@ def merge_diarized_chunks(chunk_results):
     merged_segments = []
     all_speakers = set()
     next_speaker_number = 0  # Track the next available speaker number
+    merged_embeddings = {}  # global label -> embedding vector
+    embedding_counts = {}  # for averaging matched embeddings
 
     for chunk_idx, chunk in enumerate(sorted_chunks):
         chunk_segments = chunk.get('segments') or []
+        chunk_embeddings = chunk.get('speaker_embeddings') or {}
 
         # Build speaker remapping for this chunk
         # Maps original speaker label -> new unique speaker label
@@ -1462,14 +1481,28 @@ def merge_diarized_chunks(chunk_results):
         if chunk.get('speakers'):
             for s in chunk['speakers']:
                 chunk_speakers.add(s)
+        for s in chunk_embeddings.keys():
+            chunk_speakers.add(s)
 
         # Create remapping: sort speakers to ensure deterministic ordering
         speaker_remap = {}
         for original_speaker in sorted(chunk_speakers):
             if original_speaker and original_speaker != 'Unknown':
-                # Extract number from speaker label (e.g., SPEAKER_00 -> 0)
-                # For first chunk, keep original numbering; for subsequent chunks, remap
-                if chunk_idx == 0:
+                emb = chunk_embeddings.get(original_speaker)
+                matched = None
+                if emb is not None and merged_embeddings:
+                    best_label = None
+                    best_score = embedding_match_threshold
+                    for label, known_emb in merged_embeddings.items():
+                        score = _cosine_similarity(emb, known_emb)
+                        if score >= best_score:
+                            best_score = score
+                            best_label = label
+                    matched = best_label
+
+                if matched is not None:
+                    speaker_remap[original_speaker] = matched
+                elif chunk_idx == 0:
                     # First chunk: keep original labels but track highest number
                     speaker_remap[original_speaker] = original_speaker
                     match = re.search(r'(\d+)$', original_speaker)
@@ -1481,6 +1514,21 @@ def merge_diarized_chunks(chunk_results):
                     new_speaker = f"SPEAKER_{next_speaker_number:02d}"
                     speaker_remap[original_speaker] = new_speaker
                     next_speaker_number += 1
+
+                # Fold embeddings under the global label (average if rematched)
+                global_label = speaker_remap.get(original_speaker)
+                if emb is not None and global_label:
+                    if global_label not in merged_embeddings:
+                        merged_embeddings[global_label] = [float(x) for x in emb]
+                        embedding_counts[global_label] = 1
+                    else:
+                        n = embedding_counts[global_label]
+                        prev = merged_embeddings[global_label]
+                        merged_embeddings[global_label] = [
+                            (prev[i] * n + float(emb[i])) / (n + 1)
+                            for i in range(len(prev))
+                        ]
+                        embedding_counts[global_label] = n + 1
 
         # Update transcription text with remapped speakers
         chunk_text = chunk.get('transcription', '').strip()
@@ -1539,7 +1587,12 @@ def merge_diarized_chunks(chunk_results):
             ))
 
     merged_text = '\n'.join(merged_parts)
-    return merged_text, merged_segments, sorted(list(all_speakers))
+    return (
+        merged_text,
+        merged_segments,
+        sorted(list(all_speakers)),
+        merged_embeddings or None,
+    )
 
 
 def transcribe_chunks_with_connector(connector, filepath, filename, mime_type, language, diarize=False, hotwords=None, initial_prompt=None, transcription_model=None):
@@ -1677,7 +1730,10 @@ def transcribe_chunks_with_connector(connector, filepath, filename, mime_type, l
                             'transcription': response.text,
                             'filename': chunk['filename'],
                             'segments': response.segments if use_diarization else None,
-                            'speakers': response.speakers if use_diarization else None
+                            'speakers': response.speakers if use_diarization else None,
+                            'speaker_embeddings': (
+                                response.speaker_embeddings if use_diarization else None
+                            ),
                         }
                         chunk_results.append(chunk_result)
                         current_app.logger.info(f"Chunk {i+1} transcribed successfully: {len(response.text)} characters")
@@ -1710,8 +1766,11 @@ def transcribe_chunks_with_connector(connector, filepath, filename, mime_type, l
             current_app.logger.info(f"Merging {len(chunk_results)} chunk transcriptions...")
 
             if use_diarization:
-                # For diarized chunks, merge text AND segments with adjusted timestamps
-                merged_text, merged_segments, all_speakers = merge_diarized_chunks(chunk_results)
+                # For diarized chunks, merge text AND segments with adjusted timestamps.
+                # Embedding cosine match reuses speaker labels across chunk boundaries.
+                merged_text, merged_segments, all_speakers, merged_embeddings = (
+                    merge_diarized_chunks(chunk_results)
+                )
 
                 if not merged_text.strip():
                     raise ChunkProcessingError("Merged transcription is empty")
@@ -1719,7 +1778,15 @@ def transcribe_chunks_with_connector(connector, filepath, filename, mime_type, l
                 # Log statistics
                 chunking_service.log_processing_statistics(chunk_results)
 
-                current_app.logger.info(f"Merged diarization: {len(merged_segments)} segments, {len(all_speakers)} speakers: {all_speakers}")
+                current_app.logger.info(
+                    f"Merged diarization: {len(merged_segments)} segments, "
+                    f"{len(all_speakers)} speakers: {all_speakers}"
+                    + (
+                        f", embeddings for {list(merged_embeddings.keys())}"
+                        if merged_embeddings
+                        else ""
+                    )
+                )
 
                 # Return a TranscriptionResponse so segments are preserved
                 from src.services.transcription import TranscriptionResponse
@@ -1728,7 +1795,8 @@ def transcribe_chunks_with_connector(connector, filepath, filename, mime_type, l
                     segments=merged_segments,
                     speakers=all_speakers,
                     provider=connector.PROVIDER_NAME,
-                    model=getattr(connector, 'model', 'unknown')
+                    model=getattr(connector, 'model', 'unknown'),
+                    speaker_embeddings=merged_embeddings,
                 )
             else:
                 merged_transcription = chunking_service.merge_transcriptions(chunk_results)
@@ -2067,11 +2135,20 @@ def transcribe_with_connector(app_context, recording_id, filepath, original_file
                         if hasattr(chunk_result, 'segments') and chunk_result.segments and chunk_result.has_diarization():
                             # Diarized response - store with segments for click-to-seek and speaker identification
                             recording.transcription = chunk_result.to_storage_format()
+                            recording.speaker_embeddings = (
+                                getattr(chunk_result, 'speaker_embeddings', None) or None
+                            )
+                            if recording.speaker_embeddings:
+                                current_app.logger.info(
+                                    f"Stored speaker embeddings for speakers: "
+                                    f"{list(recording.speaker_embeddings.keys())}"
+                                )
                             current_app.logger.info(f"Chunked diarized transcription completed: {len(chunk_result.text)} characters, {len(chunk_result.segments)} segments")
                         else:
                             # Plain text response
                             transcription_text = chunk_result.text if hasattr(chunk_result, 'text') else chunk_result
                             recording.transcription = transcription_text
+                            recording.speaker_embeddings = None
                             current_app.logger.info(f"Chunked transcription completed: {len(transcription_text)} characters")
                     else:
                         # Build the transcription request for single file

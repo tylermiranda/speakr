@@ -18,3 +18,5 @@ Append-only changelog of memory operations and notable session captures.
 - 2026-10-13 Recording 148 (1h Zoom) failed repeatedly: WhisperMLX memory watchdog hard-restarted mid-diarization (~28G vs 24G). Fix: unload watchdog temporarily + ASR_RETURN_SPEAKER_EMBEDDINGS=false for that job; raised watchdog soft/hard to 28/34G. Completed as Infrastructure All Hands Meeting.
 
 - (2026-10-14) Recording 153 (Charles/Adam/Tyler, ~71MB Zoom m4a) failed: WhisperMLX memory watchdog hard-restarted mid-job (footprint 36G > hard 34G) ~5m into diarize+embeddings; Speakr saw RemoteProtocolError then Connection refused on instant retries; job 105 failed after 3 retries. ASR healthy again (pid 23751). Same class as recording 148.
+
+- (2026-10-14) WhisperMLX peak RAM: pyannote batch 4/8 + serialize Whisper before diarize (>=20m or embeddings); Speakr ASR_ENABLE_CHUNKING ~15m chunks with embedding cosine speaker rematch across chunks. Recreated speakr-mac; ASR restarted.
