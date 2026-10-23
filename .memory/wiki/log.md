@@ -3,6 +3,7 @@
 Append-only changelog of memory operations and notable session captures.
 
 ## Entries
+- (2026-10-23) Companion Stats meeting cards now read `GET /api/v1/stats` `meetings` (last 30 days and all-time count, minutes, remote vs `In-Person` filename/title). The local `mac-usage.json` ledger is no longer the source for those cards. Live Mac library at check time: 943 recordings, 35,878 minutes.
 - (2026-10-23) Mac Speakr admin `auto_speaker_labelling` was off, so embeddings were stored and names were not applied. Flag set on (medium / 0.60). Backfilled leftover upload clusters on recordings 125, 126, and 132; summaries regenerated. Inquire mode is off. Peer push does not replace an already-imported transcript; recording 132 push returned 413.
 - (2026-10-08) Speaker auto-label: keep ASR `SPEAKER_XX` ids (no first-appearance renumber); skip contextual LLM when embeddings present but unmatched; reject `UNKNOWN_SPEAKER` as a name; one profile name per diarization cluster. Recording 134 had wrong names from contextual remap after empty WhisperMLX profiles.
 - (2026-10-08) Reverted Mac Speakr ASR from Apple/FluidAudio to WhisperMLX `:9001` (diarization quality). Cleared FluidAudio voice blobs again; Apple LaunchAgents parked.

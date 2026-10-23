@@ -204,7 +204,7 @@ OPENAPI_SPEC = {
             "get": {
                 "tags": ["Stats"],
                 "summary": "Get system statistics",
-                "description": "Returns stats compatible with gethomepage.dev widgets",
+                "description": "Returns stats compatible with gethomepage.dev widgets, plus meeting counts and minutes for the last 30 days and all time.",
                 "parameters": [{"name": "scope", "in": "query", "schema": {"type": "string", "enum": ["user", "all"], "default": "user"}, "description": "user=personal stats, all=global (admin only)"}],
                 "responses": {"200": {"description": "Stats object"}}
             }
@@ -553,6 +553,62 @@ def get_docs():
 # Stats Endpoint (Homepage Widget Compatible)
 # =============================================================================
 
+_MEETING_WINDOW_DAYS = 30
+
+
+def _rounded_minutes(seconds):
+    """One rounding for a whole bucket, not once per recording."""
+    return int(round(float(seconds or 0) / 60.0))
+
+
+def _in_person_clause():
+    """Companion names mic-only captures with In-Person in the file name or title."""
+    filename = func.coalesce(Recording.original_filename, '')
+    title = func.coalesce(Recording.title, '')
+    return or_(filename.ilike('%In-Person%'), title.ilike('%In-Person%'))
+
+
+def _meeting_bucket(recording_filter, *extra):
+    in_person = _in_person_clause()
+
+    def totals(predicate):
+        query = db.session.query(
+            func.count(Recording.id),
+            func.coalesce(func.sum(Recording.audio_duration_seconds), 0.0),
+        ).filter(recording_filter)
+        for clause in extra:
+            query = query.filter(clause)
+        if predicate is not None:
+            query = query.filter(predicate)
+        count, seconds = query.one()
+        return int(count or 0), _rounded_minutes(seconds)
+
+    count, minutes = totals(None)
+    remote_count, remote_minutes = totals(~in_person)
+    in_person_count, in_person_minutes = totals(in_person)
+    return {
+        'count': count,
+        'minutes': minutes,
+        'remote_count': remote_count,
+        'remote_minutes': remote_minutes,
+        'in_person_count': in_person_count,
+        'in_person_minutes': in_person_minutes,
+    }
+
+
+def _meeting_usage(recording_filter):
+    window_start = datetime.utcnow() - timedelta(days=_MEETING_WINDOW_DAYS)
+    earliest = db.session.query(func.min(Recording.meeting_date)).filter(recording_filter).scalar()
+    return {
+        'window_days': _MEETING_WINDOW_DAYS,
+        'recent': _meeting_bucket(recording_filter, Recording.meeting_date >= window_start),
+        'all_time': _meeting_bucket(recording_filter),
+        'earliest_meeting_date': earliest.strftime('%Y-%m-%dT%H:%M:%SZ') if earliest else None,
+    }
+
+
+
+
 @api_v1_bp.route('/stats', methods=['GET'])
 @login_required
 def get_stats():
@@ -569,7 +625,13 @@ def get_stats():
         "queue": {"jobs_queued": N, "jobs_processing": N},
         "tokens": {"used_this_month": N, "budget": N, "percentage": N},
         "transcription": {"used_this_month_seconds": N, "used_this_month_minutes": N, "budget_seconds": N, "budget_minutes": N, "percentage": N, "estimated_cost": N},
-        "activity": {"recordings_today": N, "last_transcription": "ISO datetime"}
+        "activity": {"recordings_today": N, "last_transcription": "ISO datetime"},
+        "meetings": {
+            "window_days": 30,
+            "recent": {"count": N, "minutes": N, "remote_count": N, "remote_minutes": N, "in_person_count": N, "in_person_minutes": N},
+            "all_time": {"count": N, "minutes": N, "remote_count": N, "remote_minutes": N, "in_person_count": N, "in_person_minutes": N},
+            "earliest_meeting_date": "ISO datetime or null"
+        }
     }
     """
     scope = request.args.get('scope', 'user')
@@ -698,6 +760,8 @@ def get_stats():
 
     last_transcription = last_completed.completed_at.isoformat() if last_completed and last_completed.completed_at else None
 
+    meetings_data = _meeting_usage(recording_filter)
+
     # Build response
     response = {
         'recordings': {
@@ -720,7 +784,8 @@ def get_stats():
         'activity': {
             'recordings_today': recordings_today,
             'last_transcription': last_transcription
-        }
+        },
+        'meetings': meetings_data,
     }
 
     # Add user counts for admin scope
